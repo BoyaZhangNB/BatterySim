@@ -1,6 +1,10 @@
+'''
+Every mechanism should have a get_gradient function that returns the gradient of its state variables according to ODEs
+'''
+
 class Thermo:
 
-    def __init__(self, resistance):
+    def __init__(self):
         pass
 
 
@@ -10,3 +14,7 @@ class Thermo:
     def ohmic_heating(voltage, current, ):
         pass
 
+
+    def get_gradient(self, voltage, current, resistance, temperature, source_voltage):
+
+        return 
