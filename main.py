@@ -11,6 +11,7 @@ Parameters:
 '''
 import numpy as np
 
+from update_state import UpdateState
 from utils import *
 
 mechanisms = []  # list of mechanism instances from mechanism/*.py
@@ -64,7 +65,7 @@ def simulate_charging(sei, policy):
     log = []
     while not y[4] < 1.0: # while soc < 100%
         v_source = policy.get_voltage(t, y)
-        
+        y = UpdateState.update_y(initial_conditions, y, v_source)
         y = rk4_step(y, t, dt, v_source) # update state
         t += dt
 

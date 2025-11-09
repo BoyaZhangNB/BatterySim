@@ -15,7 +15,7 @@ class Thermo:
         self.mass = 1
         self.c = 0.5
         self.k = 0.1  # cooling constant
-        self.ambient_temp = 25.0
+        self.ambient_temp = 298
 
     def ohmic_heating(self, y, t, v_source):
         """dT/dt = dQ/dt / mc
