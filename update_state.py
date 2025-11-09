@@ -2,25 +2,25 @@ from utils import *
 class UpdateState:
     def __init__(self):
         self.ref_Temp = 298
-        self.ea = 5000  # activation energy
-        self.k = 8.314  # gas constant
-        
+        self.ea = 0.7  # activation energy in eV; change with SoC
+        self.k = 8.314  # gas constant in eV/k
         pass
 
     def update_y(self, initial_conditions, y, v_source):
         updated_current = (v_source - y[0]) / y[2]  # update current based on v_source, voltage, resistance
         updated_resistance = initial_conditions['resistance'] * np.exp((self.ea / self.k) * 
                                 (1/y[3] - 1/self.ref_Temp))
-        updated_soc = self.get_ocv_from_soc(y[4]*100.0)  # get OCV from SOC percentage
+        updated_voltage = self.get_ocv_from_soc(y[4]*100.0)  # get OCV from SOC percentage
 
-        return pack_state(y[0], updated_current, updated_resistance, y[3], updated_soc, y[5])
+        return pack_state(updated_voltage, updated_current, updated_resistance, y[3], y[4], y[5])
     
     def get_ocv_from_soc(self, soc):
         """
-        Function to get the Open Circuit Voltage (OCV) for a given State of Charge (SOC) percentage.
+        Function to get the Open Circuit Voltage (OCV) for a given State of Charge (SOC) percentage for a lithium ion battery.
         Uses linear interpolation between data points from the provided chart.
-        Assumes the output voltage is the 24V pack voltage.
-        SOC should be between 5.0 and 100.0 percent.
+        SOC should be between 0.0 and 100.0 percent.
+
+        https://powmr.com/blogs/news/lifepo4-voltage-chart-and-soc#gf
         """
         # Data points from the chart (SOC %, 24V pack voltage)
         # Corrected the first volt per cell to 3.65 based on consistency with pack voltage (3.65 * 8 = 29.2)
@@ -43,7 +43,7 @@ class UpdateState:
             (0.0, 2.50)
         ]
 
-        if soc > 100.0 or soc < 5.0:
+        if soc > 100.0 or soc < 0.0:
             raise ValueError("SOC out of range (must be between 5.0 and 100.0)")
 
         # Since data is sorted descending by SOC, loop to find interval

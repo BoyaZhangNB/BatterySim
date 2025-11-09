@@ -11,19 +11,31 @@ Parameters:
 '''
 import numpy as np
 
+from mechanism.thermo import Thermo
+from mechanism.charging import Charging
+
+from charging_policy import *
+
 from update_state import UpdateState
 from utils import *
 
-mechanisms = []  # list of mechanism instances from mechanism/*.py
-policies = []  # instance of charging policy from charging_policy.py
+thermo = Thermo(mass=1.0, c=0.5, k=0.1, ambient_temp=298)  # mass=1kg, c=0.5 J/(kg*K), k=0.1 1/s
+charging = Charging(C_nominal=2) # nominal capacity 2Ah
+
+cv = CV(voltage=7) # constant voltage charging policy at 7V
+
+updatestate = UpdateState()
+
+mechanisms = [thermo, charging]  # list of mechanism instances from mechanism/*.py
+policies = [cv]  # instance of charging policy from charging_policy.py
 dt = 0.01  # time step
-cycles = 5  # number of charging cycles to simulate
+cycles = 1  # number of charging cycles to simulate
 
 # initial conditions
 initial_conditions = {
     'voltage': 3.0,      # initial voltage (V)
     'current': 0.0,      # initial current (A)
-    'resistance': 0.05,  # initial internal resistance (Ohm)
+    'resistance': 0.012,  # initial internal resistance (Ohm)
     'temperature': 298,  # initial temperature (K)
     'soc': 0.0,          # initial state of charge (0 to 1)
 }
@@ -63,9 +75,9 @@ def simulate_charging(sei, policy):
                    sei=sei) # pack states into a single vector
     
     log = []
-    while not y[4] < 1.0: # while soc < 100%
+    while y[4] < 1.0: # while soc < 100%
         v_source = policy.get_voltage(t, y)
-        y = UpdateState.update_y(initial_conditions, y, v_source)
+        y = updatestate.update_y(initial_conditions, y, v_source)
         y = rk4_step(y, t, dt, v_source) # update state
         t += dt
 
@@ -86,13 +98,15 @@ def simulate_charging_cycle(cycles, policy):
 
     return log
 
-def main():
-    ### TODO load and initialize mechanisms and policy here ###
+# [[y1, y2, y3],[y1, y2, y3],...]
+# Each yi is a list of (t, voltage, current, resistance, temperature, soc, sei)
 
+def main():
     for policy in policies:
         policy_log = simulate_charging_cycle(cycles, policy)
         # save log to file
-        np.savetxt(f"log/log_{policy.name}.csv", np.array(policy_log), delimiter=",")
+        headers = "time,voltage,current,resistance,temperature,soc,sei"
+        np.savetxt(f"log/log_{policy.name}.csv", np.array(*policy_log), delimiter=",", header=headers, comments='')
         print(f"Simulation with policy {policy.name} completed. Log saved to log_{policy.name}.csv")
     
 if __name__ == "__main__":

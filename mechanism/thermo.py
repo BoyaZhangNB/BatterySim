@@ -9,13 +9,19 @@ should return dy/dt = pack_state(d_voltage, d_current, d_resistance, d_temperatu
 from utils import *
 
 class Thermo:
-    """Returns the gradient of temperature"""
+    """Returns the gradient of temperature
+    Args:
+        mass: mass of the battery in kg
+        c: specific heat capacity in J/(kg*K)
+        k: cooling constant in 1/s
+        ambient_temp: ambient temperature in K
+    """
 
-    def __init__(self):
-        self.mass = 1
-        self.c = 0.5
-        self.k = 0.1  # cooling constant
-        self.ambient_temp = 298
+    def __init__(self, mass, c, k, ambient_temp=298):
+        self.mass = mass # mass of the battery
+        self.c = c # specific heat capacity
+        self.k = k  # cooling constant
+        self.ambient_temp = ambient_temp # ambient temperature in K
 
     def ohmic_heating(self, y, t, v_source):
         """dT/dt = dQ/dt / mc
@@ -36,14 +42,14 @@ class Thermo:
 
     def cooling_law(self, y, t, v_source):
         """dT/dt = -k * (T - T_ambient)"""
-        grad_T = -self.k * (y[3] - self.ambient_temp)  # cool towards ambient 25C
+        grad_T = -self.k * (y[3] - self.ambient_temp)  # cool towards ambient 298K
         return grad_T
 
     def get_gradient(self, y, t, v_source):
         grad_T = 0
 
-        grad_T += self.ohmic_heating(self, y, t, v_source)
-        grad_T += self.overpotential(self, y, t, v_source)
-        grad_T += self.cooling_law(self, y, t, v_source)
+        grad_T += self.ohmic_heating(y, t, v_source)
+        grad_T += self.overpotential(y, t, v_source)
+        grad_T += self.cooling_law(y, t, v_source)
         
         return pack_state(0, 0, 0, grad_T, 0, 0)
