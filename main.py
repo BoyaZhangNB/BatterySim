@@ -89,7 +89,6 @@ def simulate_charging_cycle(cycles, policy):
 def main():
     ### TODO load and initialize mechanisms and policy here ###
 
-
     for policy in policies:
         policy_log = simulate_charging_cycle(cycles, policy)
         # save log to file
