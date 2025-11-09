@@ -22,9 +22,6 @@ class Charging:
 
         return grad_soc
     
-    def get_voltage(self, y, t, v_source):
-        pass
-    
     def get_gradient(self, y, t, v_source):
         grad_soc = self.get_SOC(self, y, t, v_source)
 

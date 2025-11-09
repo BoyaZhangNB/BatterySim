@@ -64,7 +64,7 @@ class SEI:
             Exponent controlling nonlinearity of current effect (ν = 1 → linear).
         U_ref : float
             Reference anode potential [V]; defines "high stress" potential at full charge.
-        """"
+        """
 
     def arrhenius_factor(self, T):
         """computes temp sensitivity part of Arrhenius equation"""
@@ -95,7 +95,7 @@ class SEI:
         voltage, current, resistance, temperature, soc, sei = unpack_state(y)
 
         k_T = self.k0 * self.arrhenius_factor(temperature)
-        f_QI = self.stress_function(soc, current, U_ocv=U_ocv) # Compute SoC- and current-dependent stress term
+        f_QI = self.stress_function(soc, current, U_ocv=voltage) # Compute SoC- and current-dependent stress term
         d_sei = k_T * f_QI
 
         d_voltage = 0

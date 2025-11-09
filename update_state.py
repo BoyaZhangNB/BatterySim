@@ -13,7 +13,7 @@ class UpdateState:
                                 (1/y[3] - 1/self.ref_Temp))
         updated_soc = self.get_ocv_from_soc(y[4]*100.0)  # get OCV from SOC percentage
 
-        return pack_state(y[0], updated_current, updated_resistance, y[3], y[4], y[5])
+        return pack_state(y[0], updated_current, updated_resistance, y[3], updated_soc, y[5])
     
     def get_ocv_from_soc(self, soc):
         """
