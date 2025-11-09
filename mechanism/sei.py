@@ -92,7 +92,7 @@ class SEI:
         """
         Compute d(SEI)/dt
         """
-        voltage, current, resistance, temperature, soc, sei = y
+        voltage, current, resistance, temperature, soc, sei = unpack_state(y)
 
         k_T = self.k0 * self.arrhenius_factor(temperature)
         f_QI = self.stress_function(soc, current, U_ocv=U_ocv) # Compute SoC- and current-dependent stress term
