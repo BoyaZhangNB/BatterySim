@@ -64,7 +64,7 @@ def simulate_charging(sei, policy):
     log = []
     while not y[4] < 1.0: # while soc < 100%
         v_source = policy.get_voltage(t, y)
-
+        
         y = rk4_step(y, t, dt, v_source) # update state
         t += dt
 

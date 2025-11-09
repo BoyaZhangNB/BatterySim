@@ -14,7 +14,8 @@ class Thermo:
     def __init__(self):
         self.mass = 1
         self.c = 0.5
-        
+        self.k = 0.1  # cooling constant
+        self.ambient_temp = 25.0
 
     def ohmic_heating(self, y, t, v_source):
         """dT/dt = dQ/dt / mc
@@ -31,8 +32,18 @@ class Thermo:
 
         grad_T = y[1] * (v_source - y[0]) / (self.mass * self.c)
         grad = pack_state(0, 0, 0, grad_T, 0, 0)
-        return 
+        return grad
+    
+    def last_term(self, y, t, v_source):
+        pass
 
+    def cooling_law(self, y, t, v_source):
+        '''dT/dt = -k * (T - T_ambient)'''
+        grad_T = -self.k * (y[3] - self.ambient_temp)  # cool towards ambient 25C
+        grad = pack_state(0, 0, 0, grad_T, 0, 0)
+        return grad
+
+    def
 
     def get_gradient(self, y, t, v_source):
         grad = 0
