@@ -43,8 +43,6 @@ class Thermo:
         grad = pack_state(0, 0, 0, grad_T, 0, 0)
         return grad
 
-    def
-
     def get_gradient(self, y, t, v_source):
         grad = 0
 
