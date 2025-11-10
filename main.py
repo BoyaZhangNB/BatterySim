@@ -9,6 +9,7 @@ Parameters:
     - SEI: solid-electrolyte interphase that permanently reduces battery capacity
     - v_source: supplied voltage from source
 '''
+import os
 import numpy as np
 
 from mechanism.thermo import Thermo
@@ -72,8 +73,7 @@ def simulate_charging(sei, policy):
                    initial_conditions['resistance'], 
                    initial_conditions['temperature'], 
                    initial_conditions['soc'], 
-                   sei=sei) # pack states into a single vector
-    
+                   sei=sei) # pack states into a single vector    
     log = []
     while y[4] < 1.0: # while soc < 100%
         v_source = policy.get_voltage(t, y)
@@ -105,6 +105,7 @@ def main():
     for policy in policies:
         policy_log = simulate_charging_cycle(cycles, policy)
         # save log to file
+        os.makedirs("log", exist_ok=True)
         headers = "time,voltage,current,resistance,temperature,soc,sei"
         np.savetxt(f"log/log_{policy.name}.csv", np.array(*policy_log), delimiter=",", header=headers, comments='')
         print(f"Simulation with policy {policy.name} completed. Log saved to log_{policy.name}.csv")
