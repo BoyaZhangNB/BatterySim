@@ -1,0 +1,283 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{Complete Battery Charging Model}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{State Vector}
+
+The simulation uses the packed state vector
+\[
+y = \begin{bmatrix}
+V \\ I \\ R \\ T \\ SOC \\ SEI
+\end{bmatrix},
+\]
+where:
+\[
+\begin{aligned}
+V &: \text{terminal/OCV voltage (V)}, \\
+I &: \text{current into the battery (A)}, \\
+R &: \text{internal resistance (}\Omega\text{)}, \\
+T &: \text{temperature (K)}, \\
+SOC &: \text{state of charge (0--1)}, \\
+SEI &: \text{SEI layer thickness (arb. units)}.
+\end{aligned}
+\]
+
+The full ODE system is:
+\[
+\frac{dy}{dt} = \sum_{\text{mechanisms}} \frac{dy}{dt}^{(\text{mech})}.
+\]
+
+% =====================================================
+\section{Charging Model (SOC Dynamics)}
+\subsection*{Differential Equation}
+
+\[
+\frac{dSOC}{dt} = \frac{I}{C_{\text{nominal}} \cdot 3600}
+\]
+
+All other partial derivatives from this mechanism are zero.
+
+\subsection*{Parameters}
+\[
+\begin{aligned}
+C_{\text{nominal}} &: \text{nominal capacity (Ah)}, \\
+3600 &: \text{seconds per hour}.
+\end{aligned}
+\]
+
+% =====================================================
+\section{Thermal Model}
+
+\subsection{Ohmic Heating}
+\[
+\left(\frac{dT}{dt}\right)_{\text{ohmic}} 
+= \frac{I^2 R}{m c}
+\]
+
+\subsection{Overpotential Heating}
+\[
+\left(\frac{dT}{dt}\right)_{\text{overpotential}}
+= \frac{I\,(V_{\text{source}} - V)}{m c}
+\]
+
+\subsection{Cooling (Newton's Law)}
+\[
+\left(\frac{dT}{dt}\right)_{\text{cooling}}
+= -k(T - T_{\text{amb}})
+\]
+
+\subsection{Total Temperature ODE}
+\[
+\frac{dT}{dt} =
+\frac{I^2 R}{m c}
++ \frac{I\,(V_{\text{source}} - V)}{m c}
+- k(T - T_{\text{amb}})
+\]
+
+\subsection*{Parameters}
+\[
+\begin{aligned}
+m &: \text{mass (kg)}, \\
+c &: \text{specific heat (J/(kg K))}, \\
+k &: \text{cooling constant (1/s)}, \\
+T_{\text{amb}} &: \text{ambient temperature (K)}.
+\end{aligned}
+\]
+
+% =====================================================
+\section{SEI Growth Model (Full Version)}
+
+\subsection{Arrhenius Temperature Factor}
+\[
+f_T(T) = \exp\left(-\frac{E_a}{R_{\text{gas}} T}\right)
+\]
+
+\subsection{Stress Function}
+Let the effective anode potential be:
+\[
+U = \begin{cases}
+U_{\text{ocv}}, & \text{if supplied} \\
+U_{\text{ref}} \cdot SOC, & \text{otherwise}
+\end{cases}
+\]
+
+Compute:
+\[
+\text{exponent} = \gamma_{\text{soc}} (U_{\text{ref}} - U)
+\]
+\[
+\text{current\_term} = \left(1 + \beta_I |I|\right)^{\nu}
+\]
+
+Stress multiplier:
+\[
+f_{QI}(SOC,I,U) =
+A \exp\left(\gamma_{\text{soc}} (U_{\text{ref}} - U)\right)
+\left(1 + \beta_I |I|\right)^{\nu}
+\]
+
+\subsection{SEI Growth ODE}
+\[
+k_T = k_0 \exp\left(-\frac{E_a}{R_{\text{gas}}T}\right)
+\]
+
+\[
+\frac{dSEI}{dt} = k_T \, f_{QI}(SOC,I,U)
+\]
+
+\subsection*{Parameters}
+\[
+\begin{aligned}
+k_0 &: \text{SEI rate prefactor (m/s or a.u.)}, \\
+E_a &: \text{activation energy (J/mol)}, \\
+R_{\text{gas}} &: 8.314 \text{ (J/mol K)}, \\
+A &: \text{scaling factor}, \\
+\gamma_{\text{soc}} &: \text{SOC/potential sensitivity}, \\
+\beta_I &: \text{current influence factor}, \\
+\nu &: \text{current exponent}, \\
+U_{\text{ref}} &: \text{reference potential (V)}.
+\end{aligned}
+\]
+
+% =====================================================
+\section{Simplified SEI Model}
+
+\subsection{Stress Function}
+\[
+\text{soc\_factor} = \max(0,\min(1,SOC))
+\]
+\[
+\text{current\_factor} = |I|
+\]
+\[
+f_{QI}(SOC,I) = (1 + 2\,\text{soc\_factor}^2)(1 + 0.1|I|)
+\]
+
+\subsection{SEI ODE}
+\[
+\frac{dSEI}{dt} = k_0 \exp\left( -\frac{E_a}{R_{\text{gas}}T} \right)
+(1 + 2 SOC^2)(1 + 0.1|I|)
+\]
+
+% =====================================================
+\section{Algebraic State Updates}
+
+These are applied each timestep before integration.
+
+\subsection{Current Update}
+\[
+I_{\text{new}}
+= \frac{V_{\text{source}} - V}{R}
+\]
+
+\subsection{Temperature-Dependent Resistance Update}
+\[
+R_{\text{new}}
+= R_0 \exp\left(
+\frac{E_a}{k}\left(
+\frac{1}{T} - \frac{1}{T_{\text{ref}}}
+\right)
+\right)
+\]
+
+Parameters:
+\[
+\begin{aligned}
+R_0 &: \text{initial resistance (}\Omega\text{)}, \\
+E_a &: 0.7 \text{ (eV)}, \\
+k &: 8.314 \text{ (eV/K)}, \\
+T_{\text{ref}} &: 298 \text{ (K)}.
+\end{aligned}
+\]
+
+\subsection{OCV From SOC (Table Interpolation)}
+For SOC (0--100\%):
+
+Given pairs $(s_i, V_i)$,
+\[
+OCV(s) =
+V_{\text{low}}
++
+\frac{s - s_{\text{low}}}{s_{\text{high}} - s_{\text{low}}}
+\left(V_{\text{high}} - V_{\text{low}}\right)
+\]
+
+\subsection{Updated State}
+\[
+y_{\text{new}}
+=
+\begin{bmatrix}
+OCV(100 \cdot SOC) \\
+\frac{V_{\text{source}} - V}{R} \\
+R_{\text{new}} \\
+T \\
+SOC \\
+SEI
+\end{bmatrix}
+\]
+
+% =====================================================
+\section{Charging Policies}
+
+\subsection{Constant Voltage (CV)}
+\[
+V_{\text{source}} = V_{\text{set}}
+\]
+
+\subsection{Constant Current (CC)}
+\[
+V_{\text{source}} = \frac{I_{\text{set}}}{R}
+\]
+
+\subsection{Pulse Charging}
+Let
+\[
+t_{\text{cycle}} = t_{\text{on}} + t_{\text{off}}.
+\]
+Then:
+\[
+V_{\text{source}}(t)
+=
+\begin{cases}
+\frac{I_{\text{set}}}{R}, & (t \bmod t_{\text{cycle}}) < t_{\text{on}} \\[6pt]
+0, & \text{otherwise}
+\end{cases}
+\]
+
+\subsection{Sinusoidal Charging}
+\[
+V_{\text{source}}(t)
+= \frac{I_{\text{amp}} \sin(2\pi f t)}{R}
+\]
+
+% =====================================================
+\section{Complete System ODE (As Used in main.py)}
+
+With active mechanisms = \{Thermo, Charging\}:
+\[
+\frac{dV}{dt} = 0,\qquad
+\frac{dI}{dt} = 0,\qquad
+\frac{dR}{dt} = 0,
+\]
+\[
+\frac{dSOC}{dt} = \frac{I}{C_{\text{nominal}} \cdot 3600},
+\]
+\[
+\frac{dT}{dt} =
+\frac{I^2 R}{m c}
++ \frac{I\,(V_{\text{source}} - V)}{m c}
+- k(T - T_{\text{amb}}),
+\]
+\[
+\frac{dSEI}{dt} = 0 \quad(\text{unless SEI model is added}).
+\]
+
+\end{document}
