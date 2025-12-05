@@ -43,7 +43,7 @@ from utils import *
 # ==================== Mechanism Initialization ====================
 # Initialize physical mechanisms that govern battery behavior
 _thermo = Thermo(mass=1.0, c=0.5, k=3, ambient_temp=298)  # Thermal dynamics: 1kg mass, 0.5 J/(kg*K) specific heat
-_charging = Charging(C_nominal=200) # Charging dynamics: 200 Ah nominal capacity
+_charging = Charging(C_nominal=2000) # Charging dynamics: 2000 Ah nominal capacity
 _sei = SEI()  # Solid-Electrolyte Interphase layer growth
 _transient = Transient(R=0.008, C=5000) # RC circuit dynamics: 8 mΩ resistance, 5000 F capacitance
 
@@ -58,9 +58,9 @@ updatestate = UpdateState()
 
 # ==================== Simulation Configuration ====================
 mechanisms = [_thermo, _charging, _sei, _transient]  # List of mechanism instances from mechanism/*.py
-policies = [_pulse]  # Charging policies to simulate (can add multiple policies)
+policies = [_cv, _cc, _pulse, _sinusoidal]  # Charging policies to simulate (can add multiple policies)
 dt = 0.1  # Time step in seconds (smaller = more accurate but slower)
-cycles = 1  # Number of charging cycles to simulate per policy
+cycles = 10  # Number of charging cycles to simulate per policy
 
 # ==================== Initial Conditions ====================
 # Starting state for each charging cycle
@@ -255,13 +255,22 @@ def main():
     for policy in policies:
         # Simulate charging cycles for this policy
         policy_log = simulate_charging_cycle(cycles, policy)
-        
-        # Save log to CSV file
-        os.makedirs("log", exist_ok=True)  # Create log directory if it doesn't exist
+
+        os.makedirs("log", exist_ok=True)
         headers = "time,voltage,current,resistance,temperature,soc,sei,transient voltage"
-        np.savetxt(f"log/log_{policy.name}.csv", np.array(*policy_log), delimiter=",", header=headers, comments='')
-        
-        print(f"Simulation with policy {policy.name} completed. Log saved to log_{policy.name}.csv")
+
+        # Save each cycle separately
+        for i, cycle_log in enumerate(policy_log, start=1):
+
+            # Convert list of tuples into array
+            arr = np.array(cycle_log)
+
+            filename = f"log/log_{policy.name}_cycle{i}.csv"
+            np.savetxt(filename, arr, delimiter=",", header=headers, comments='')
+
+            print(f"Saved {filename}")
+
+        print(f"Simulation with policy {policy.name} completed.")
     
 if __name__ == "__main__":
     main()
