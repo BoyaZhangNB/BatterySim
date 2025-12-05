@@ -79,7 +79,8 @@ def simulate_charging(sei, policy):
                    initial_conditions['resistance'], 
                    initial_conditions['temperature'], 
                    initial_conditions['soc'], 
-                   sei=sei) # pack states into a single vector    
+                   sei,
+                   initial_conditions['transient voltage']) # pack states into a single vector    
     log = []
     while y[4] < 1.0: # while soc < 100%
         v_source = policy.get_voltage(t, y)

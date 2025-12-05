@@ -30,15 +30,6 @@ class Thermo:
         grad_T = (y[1]**2 * y[2]) / (self.mass * self.c)
 
         return grad_T
-    
-    def overpotential(self, y, t, v_source):
-        """dT/dt = I * (V_source - V) / mc"""
-
-        grad_T = y[1] * (v_source - y[0]) / (self.mass * self.c)
-        return grad_T
-    
-    def last_term(self, y, t, v_source):
-        pass
 
     def cooling_law(self, y, t, v_source):
         """dT/dt = -k * (T - T_ambient)"""
@@ -48,8 +39,7 @@ class Thermo:
     def get_gradient(self, y, t, v_source):
         grad_T = 0
 
-        # grad_T += self.ohmic_heating(y, t, v_source)
-        grad_T += self.overpotential(y, t, v_source)
+        grad_T += self.ohmic_heating(y, t, v_source)
         grad_T += self.cooling_law(y, t, v_source)
         
         return pack_state(0, 0, 0, grad_T, 0, 0)

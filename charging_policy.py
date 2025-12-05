@@ -1,5 +1,6 @@
 """All policies should have a get_voltage(t, y) method and a name attribute."""
 import math
+from utils import *
 
 class CV:
     '''
@@ -27,7 +28,7 @@ class CC:
         self.name = f"CC_{current}A"
 
     def get_voltage(self, t, y):
-        battery_voltage = y[0]
+        battery_voltage = get_ocv_from_soc(y[4])
         resistance = y[2]
         desired_voltage = self.current * resistance
         return desired_voltage + battery_voltage
@@ -50,7 +51,7 @@ class PulseCharging:
         self.name = f"Pulse_{current}A_{pulse_time}s_on_{rest_time}s_off"
 
     def get_voltage(self, t, y):
-        battery_voltage = y[0]
+        battery_voltage = get_ocv_from_soc(y[4])
         resistance = y[2]
         if (t % self.cycle_time) < self.pulse_time:
             return self.current * resistance + battery_voltage
@@ -71,6 +72,6 @@ class SinusoidalCharging:
         self.name = f"Sine_{current}A_{frequency}Hz"
 
     def get_voltage(self, t, y):
-        battery_voltage = y[0]
+        battery_voltage = get_ocv_from_soc(y[4])
         resistance = y[2]
         return self.current * abs(math.sin(2 * math.pi * self.frequency * t)) * resistance + battery_voltage
