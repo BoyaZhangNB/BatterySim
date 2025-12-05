@@ -27,8 +27,10 @@ class CC:
         self.name = f"CC_{current}A"
 
     def get_voltage(self, t, y):
+        battery_voltage = y[0]
         resistance = y[2]
-        return self.current/resistance
+        desired_voltage = self.current * resistance
+        return desired_voltage + battery_voltage
     
 
 class PulseCharging:
@@ -48,11 +50,12 @@ class PulseCharging:
         self.name = f"Pulse_{current}A_{pulse_time}s_on_{rest_time}s_off"
 
     def get_voltage(self, t, y):
+        battery_voltage = y[0]
         resistance = y[2]
         if (t % self.cycle_time) < self.pulse_time:
-            return self.current/resistance
+            return self.current * resistance + battery_voltage
         else:
-            return 0
+            return battery_voltage
         
 class SinusoidalCharging:
     '''
@@ -68,5 +71,6 @@ class SinusoidalCharging:
         self.name = f"Sine_{current}A_{frequency}Hz"
 
     def get_voltage(self, t, y):
+        battery_voltage = y[0]
         resistance = y[2]
-        return (self.current * math.sin(2 * math.pi * self.frequency * t))/resistance
+        return self.current * abs(math.sin(2 * math.pi * self.frequency * t)) * resistance + battery_voltage

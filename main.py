@@ -26,12 +26,15 @@ _thermo = Thermo(mass=1.0, c=0.5, k=3, ambient_temp=298)  # mass=1kg, c=0.5 J/(k
 _charging = Charging(C_nominal=200) # nominal capacity 2Ah
 _sei = SEI()
 
-cv = CV(voltage=3.7) # constant voltage charging policy at 7V
+_cv = CV(voltage=3.7) # constant voltage charging policy at 7V
+_cc = CC(current=25)
+_pulse = PulseCharging(current=50, pulse_time=2, rest_time=0.25)
+_sinusoidal = SinusoidalCharging(current=60, frequency=4)
 
 updatestate = UpdateState()
 
 mechanisms = [_thermo, _charging, _sei]  # list of mechanism instances from mechanism/*.py
-policies = [cv]  # instance of charging policy from charging_policy.py
+policies = [_cv, _cc, _sinusoidal]  # instance of charging policy from charging_policy.py
 dt = 0.1  # time step
 cycles = 1  # number of charging cycles to simulate
 
@@ -39,7 +42,7 @@ cycles = 1  # number of charging cycles to simulate
 initial_conditions = {
     'voltage': 3.0,      # initial voltage (V)
     'current': 0.0,      # initial current (A)
-    'resistance': 0.012,  # initial internal resistance (Ohm)
+    'resistance': 0.03,  # initial internal resistance (Ohm)
     'temperature': 298,  # initial temperature (K)
     'soc': 0.0,          # initial state of charge (0 to 1)
 }
