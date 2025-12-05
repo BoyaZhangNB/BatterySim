@@ -14,22 +14,25 @@ import numpy as np
 
 from mechanism.thermo import Thermo
 from mechanism.charging import Charging
+from mechanism.sei import SEI
 
 from charging_policy import *
 
 from update_state import UpdateState
 from utils import *
 
-thermo = Thermo(mass=1.0, c=0.5, k=0.1, ambient_temp=298)  # mass=1kg, c=0.5 J/(kg*K), k=0.1 1/s
-charging = Charging(C_nominal=2) # nominal capacity 2Ah
 
-cv = CV(voltage=7) # constant voltage charging policy at 7V
+_thermo = Thermo(mass=1.0, c=0.5, k=3, ambient_temp=298)  # mass=1kg, c=0.5 J/(kg*K), k=0.1 1/s
+_charging = Charging(C_nominal=200) # nominal capacity 2Ah
+_sei = SEI()
+
+cv = CV(voltage=3.7) # constant voltage charging policy at 7V
 
 updatestate = UpdateState()
 
-mechanisms = [thermo, charging]  # list of mechanism instances from mechanism/*.py
+mechanisms = [_thermo, _charging, _sei]  # list of mechanism instances from mechanism/*.py
 policies = [cv]  # instance of charging policy from charging_policy.py
-dt = 0.01  # time step
+dt = 0.1  # time step
 cycles = 1  # number of charging cycles to simulate
 
 # initial conditions
@@ -92,7 +95,8 @@ def simulate_charging_cycle(cycles, policy):
     sei = initial_sei
 
     for cycle in range(cycles):
-        print(f"Starting cycle {cycle+1}")
+        if cycle % 100 == 0:
+            print(f"Starting cycle {cycle+1}")
         cycle_log = simulate_charging(sei, policy)
         log.append(cycle_log)
 

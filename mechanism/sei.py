@@ -34,7 +34,7 @@ class SEI:
     Models SEI layer growth dynamics
     """
     def __init__(self,
-                 k0=1e-12,        # Base rate constant for SEI growth [m/s or arbitrary units]
+                 k0=1e-7,        # Base rate constant for SEI growth [m/s or arbitrary units]
                  Ea=3.0e4,        # Activation energy for SEI growth [J/mol]
                  A=1.0,           # Scaling factor for stress function (dimensionless)
                  gamma_soc=0.5,   # Sensitivity of SEI growth to SoC / potential

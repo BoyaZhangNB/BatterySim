@@ -48,7 +48,7 @@ class Thermo:
     def get_gradient(self, y, t, v_source):
         grad_T = 0
 
-        grad_T += self.ohmic_heating(y, t, v_source)
+        # grad_T += self.ohmic_heating(y, t, v_source)
         grad_T += self.overpotential(y, t, v_source)
         grad_T += self.cooling_law(y, t, v_source)
         

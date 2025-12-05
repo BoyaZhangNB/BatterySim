@@ -5,6 +5,10 @@ def pack_state(voltage, current, resistance, temperature, soc, sei):
     return np.array([voltage, current, resistance, temperature, soc, sei], dtype=float)
 
 def unpack_state(y):
+    """unpacks a state into tuple
+    Args:        y: state vector
+    Returns:    voltage, current, resistance, temperature, soc, sei 
+    """
     return tuple(y)
 
 import matplotlib.pyplot as plt
