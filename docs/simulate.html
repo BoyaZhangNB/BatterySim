@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Interactive Battery Simulation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Shared styles -->
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <!-- Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+
+    <style>
+        .sim-layout {
+            width: 90%;
+            max-width: 1100px;
+            margin: 20px auto 35px auto;
+            display: grid;
+            grid-template-columns: minmax(280px, 340px) 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 950px) {
+            .sim-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .sim-controls {
+            background: var(--glass);
+            border-radius: var(--radius);
+            padding: 18px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 18px 45px rgba(15,23,42,0.85);
+        }
+
+        .sim-controls h2 {
+            margin-top: 0;
+            font-size: 1.15rem;
+        }
+
+        .sim-controls label {
+            display: block;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: var(--subtext);
+        }
+
+        .sim-controls input,
+        .sim-controls select {
+            width: 100%;
+            padding: 7px 9px;
+            border-radius: 8px;
+            border: 1px solid rgba(148,163,184,0.7);
+            margin-top: 3px;
+            font-size: 0.85rem;
+            background: rgba(15,23,42,0.9);
+            color: var(--text);
+        }
+
+        .sim-controls input:focus,
+        .sim-controls select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(34,211,238,0.5);
+        }
+
+        .sim-controls .btn {
+            width: 100%;
+            margin-top: 14px;
+        }
+
+        .sim-status {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: var(--subtext);
+            min-height: 20px;
+        }
+
+        .advanced-toggle {
+            margin-top: 12px;
+            font-size: 0.8rem;
+            color: var(--subtext);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .advanced-panel {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed rgba(148,163,184,0.4);
+            display: none;
+        }
+
+        .advanced-panel.visible {
+            display: block;
+        }
+
+        .advanced-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0,1fr));
+            gap: 10px 12px;
+        }
+
+        .advanced-grid label {
+            margin-top: 0;
+        }
+
+        .plots {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .plot-card {
+            background: var(--glass);
+            border-radius: var(--radius);
+            padding: 10px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 18px 45px rgba(15,23,42,0.85);
+        }
+
+        .plot-card h3 {
+            font-size: 0.95rem;
+            margin: 4px 4px 8px;
+        }
+
+        .metric-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .metric-pill {
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(15,23,42,0.9);
+            border: 1px solid rgba(148,163,184,0.5);
+            font-size: 0.78rem;
+            color: var(--subtext);
+        }
+
+        .plot {
+            width: 100%;
+            height: 240px;
+        }
+
+        .hero-line {
+            height: 2px;
+            width: 120px;
+            background: linear-gradient(90deg, #22c55e, #22d3ee);
+            border-radius: 999px;
+            box-shadow: 0 0 18px rgba(34,211,238,0.9);
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Scroll charging bar -->
+    <div id="charging-bar">
+        <div id="charging-fill"></div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <nav>
+            <div class="title">
+                <div class="batt-nav"><div class="batt-fill"></div></div>
+                <span>BatterySim ODE Project</span>
+            </div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="policies.html">Policies &amp; Mechanisms</a></li>
+                <li><a href="equations.html">Equations</a></li>
+                <li><a style="color:var(--accent)">Simulation</a></li>
+                <li><a href="code.html">Code</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section>
+        <div class="hero-line"></div>
+        <h2>Interactive Battery Charging Simulation</h2>
+        <p>
+            Explore how different charging policies and physical parameters affect voltage, current,
+            temperature, state-of-charge (SOC), and SEI growth. The model runs entirely in your browser
+            using a Python ODE system executed through Pyodide.
+        </p>
+    </section>
+
+    <div class="sim-layout">
+        <!-- Controls -->
+        <div class="sim-controls">
+            <h2>Simulation Controls</h2>
+
+            <label for="policy-select">Charging Policy</label>
+            <select id="policy-select">
+                <option value="CV">Constant Voltage (CV)</option>
+                <option value="CC">Constant Current (CC)</option>
+                <option value="Pulse">Pulse Charging</option>
+                <option value="Sine">Sinusoidal Charging</option>
+            </select>
+
+            <label for="initial-soc">Initial SOC (0–1)</label>
+            <input type="number" id="initial-soc" value="0.0" min="0" max="1" step="0.01" />
+
+            <label for="initial-temp">Initial Temperature (K)</label>
+            <input type="number" id="initial-temp" value="298" min="250" max="400" step="1" />
+
+            <label for="tmax">Maximum Time (s)</label>
+            <input type="number" id="tmax" value="4000" min="200" max="20000" step="100" />
+
+            <label for="dt">Time Step (s)</label>
+            <input type="number" id="dt" value="0.5" min="0.01" max="10" step="0.01" />
+
+            <label for="cycles">Cycles (informal)</label>
+            <input type="number" id="cycles" value="1" min="1" max="5" step="1" />
+
+            <div class="advanced-toggle" onclick="toggleAdvanced()">
+                <span>▾ Advanced Parameters</span>
+            </div>
+
+            <div class="advanced-panel" id="advanced-panel">
+                <div class="advanced-grid">
+                    <!-- Battery / thermal -->
+                    <div>
+                        <label for="mass">Mass (kg)</label>
+                        <input type="number" id="mass" value="1.0" step="0.1" />
+                    </div>
+                    <div>
+                        <label for="c">Heat Capacity (J/kgK)</label>
+                        <input type="number" id="c" value="0.5" step="0.1" />
+                    </div>
+                    <div>
+                        <label for="k_cool">Cooling k (1/s)</label>
+                        <input type="number" id="k_cool" value="3.0" step="0.1" />
+                    </div>
+                    <div>
+                        <label for="Tamb">Ambient T (K)</label>
+                        <input type="number" id="Tamb" value="298" step="1" />
+                    </div>
+                    <div>
+                        <label for="C_nom">C_nom (Ah)</label>
+                        <input type="number" id="C_nom" value="200" step="1" />
+                    </div>
+                    <div>
+                        <label for="R0">Initial R (Ω)</label>
+                        <input type="number" id="R0" value="0.03" step="0.005" />
+                    </div>
+
+                    <!-- SEI (simplified) -->
+                    <div>
+                        <label for="k0">SEI k₀</label>
+                        <input type="number" id="k0" value="1e-7" step="1e-7" />
+                    </div>
+                    <div>
+                        <label for="Ea">SEI Eₐ (J/mol)</label>
+                        <input type="number" id="Ea" value="30000" step="1000" />
+                    </div>
+
+                    <!-- Policy parameters -->
+                    <div>
+                        <label for="Vset">CV Vset (V)</label>
+                        <input type="number" id="Vset" value="3.7" step="0.1" />
+                    </div>
+                    <div>
+                        <label for="Iset">CC/Pulse Iset (A)</label>
+                        <input type="number" id="Iset" value="25" step="1" />
+                    </div>
+                    <div>
+                        <label for="t_on">Pulse on (s)</label>
+                        <input type="number" id="t_on" value="2" step="0.1" />
+                    </div>
+                    <div>
+                        <label for="t_off">Pulse off (s)</label>
+                        <input type="number" id="t_off" value="0.25" step="0.05" />
+                    </div>
+                    <div>
+                        <label for="Iamp">Sine Iamp (A)</label>
+                        <input type="number" id="Iamp" value="60" step="1" />
+                    </div>
+                    <div>
+                        <label for="freq">Sine freq (Hz)</label>
+                        <input type="number" id="freq" value="4" step="0.5" />
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="runSimulation()">Run Simulation</button>
+            <div class="sim-status" id="sim-status">Pyodide loading...</div>
+        </div>
+
+        <!-- Plots & metrics -->
+        <div class="plots">
+            <div class="plot-card">
+                <div class="metric-strip" id="metric-strip">
+                    <!-- Filled dynamically -->
+                </div>
+                <h3>Voltage vs Time</h3>
+                <div id="voltage-plot" class="plot"></div>
+            </div>
+            <div class="plot-card">
+                <h3>Current vs Time</h3>
+                <div id="current-plot" class="plot"></div>
+            </div>
+            <div class="plot-card">
+                <h3>Temperature vs Time</h3>
+                <div id="temperature-plot" class="plot"></div>
+            </div>
+            <div class="plot-card">
+                <h3>SOC vs Time</h3>
+                <div id="soc-plot" class="plot"></div>
+            </div>
+            <div class="plot-card">
+                <h3>SEI vs Time</h3>
+                <div id="sei-plot" class="plot"></div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        © 2025 BatterySim ODE Project
+    </footer>
+
+    <!-- Scroll-driven charging + section reveal -->
+    <script>
+        document.addEventListener("scroll", () => {
+            const scrollY = window.scrollY;
+            const docHeight = document.body.scrollHeight - window.innerHeight;
+            const progress = docHeight > 0 ? (scrollY / docHeight) * 100 : 0;
+
+            const fill = document.getElementById("charging-fill");
+            if (fill) fill.style.height = progress + "%";
+
+            document.querySelectorAll("section").forEach(sec => {
+                const rect = sec.getBoundingClientRect();
+                if (rect.top < window.innerHeight - 80) {
+                    sec.classList.add("visible");
+                }
+            });
+        });
+
+        function toggleAdvanced() {
+            const panel = document.getElementById("advanced-panel");
+            panel.classList.toggle("visible");
+        }
+
+        window.addEventListener("load", () => {
+            document.dispatchEvent(new Event("scroll"));
+        });
+    </script>
+
+    <!-- Our helper scripts -->
+    <script src="scripts/plot.js"></script>
+    <script src="scripts/pyodide_loader.js"></script>
+</body>
+</html>

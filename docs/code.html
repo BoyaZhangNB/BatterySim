@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Code Reference</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Prism.js for syntax highlighting -->
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
+
+    <style>
+        .code-layout {
+            width: 90%;
+            max-width: 1100px;
+            margin: 24px auto 40px auto;
+            display: grid;
+            grid-template-columns: 230px minmax(0, 1fr);
+            gap: 18px;
+        }
+
+        @media (max-width: 900px) {
+            .code-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .code-sidebar {
+            background: var(--glass);
+            border-radius: var(--radius);
+            padding: 14px 12px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 18px 45px rgba(15,23,42,0.85);
+            font-size: 0.9rem;
+        }
+
+        .code-sidebar h3 {
+            margin-top: 0;
+            font-size: 0.95rem;
+        }
+
+        .file-list {
+            list-style: none;
+            padding: 0;
+            margin: 8px 0 0 0;
+        }
+
+        .file-list li {
+            margin-bottom: 4px;
+        }
+
+        .file-btn {
+            width: 100%;
+            text-align: left;
+            padding: 6px 9px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--subtext);
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .file-btn span {
+            pointer-events: none;
+        }
+
+        .file-btn:hover {
+            background: rgba(15,23,42,0.9);
+            border-color: rgba(148,163,184,0.7);
+            color: var(--text);
+        }
+
+        .file-btn.active {
+            background: linear-gradient(120deg, rgba(34,197,94,0.1), rgba(34,211,238,0.1));
+            border-color: rgba(34,211,238,0.9);
+            color: var(--accent);
+        }
+
+        .code-main {
+            background: var(--glass);
+            border-radius: var(--radius);
+            padding: 14px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 18px 45px rgba(15,23,42,0.85);
+        }
+
+        .code-main h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+        }
+
+        .code-explainer {
+            font-size: 0.85rem;
+            color: var(--subtext);
+            margin-bottom: 10px;
+        }
+
+        pre {
+            margin: 0;
+            padding: 10px;
+            border-radius: 10px;
+            background: #0b1120 !important;
+            max-height: 420px;
+            overflow: auto;
+            border: 1px solid rgba(148,163,184,0.6);
+        }
+
+        .hero-line {
+            height: 2px;
+            width: 120px;
+            background: linear-gradient(90deg, #22c55e, #22d3ee);
+            border-radius: 999px;
+            box-shadow: 0 0 18px rgba(34,211,238,0.9);
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Scroll charging bar -->
+    <div id="charging-bar">
+        <div id="charging-fill"></div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <nav>
+            <div class="title">
+                <div class="batt-nav"><div class="batt-fill"></div></div>
+                <span>BatterySim ODE Project</span>
+            </div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="policies.html">Policies &amp; Mechanisms</a></li>
+                <li><a href="equations.html">Equations</a></li>
+                <li><a href="simulate.html">Simulation</a></li>
+                <li><a style="color:var(--accent)">Code</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section>
+        <div class="hero-line"></div>
+        <h2>Code Reference</h2>
+        <p>
+            This page exposes the Python source files used in the simulation, alongside short
+            explanations of each file’s role in the overall model. Use the sidebar to switch
+            between modules.
+        </p>
+    </section>
+
+    <div class="code-layout">
+        <aside class="code-sidebar">
+            <h3>Python Modules</h3>
+            <ul class="file-list">
+                <li><button class="file-btn" data-file="charging.py"><span>charging.py</span><span>Mechanism</span></button></li>
+                <li><button class="file-btn" data-file="charging_policies.py"><span>charging_policies.py</span><span>Policies</span></button></li>
+                <li><button class="file-btn" data-file="thermo.py"><span>thermo.py</span><span>Thermal</span></button></li>
+                <li><button class="file-btn" data-file="sei.py"><span>sei.py</span><span>SEI (full)</span></button></li>
+                <li><button class="file-btn" data-file="sei_simplified.py"><span>sei_simplified.py</span><span>SEI (simple)</span></button></li>
+                <li><button class="file-btn" data-file="transient.py"><span>transient.py</span><span>RC</span></button></li>
+                <li><button class="file-btn" data-file="update_state.py"><span>update_state.py</span><span>Algebraic</span></button></li>
+                <li><button class="file-btn" data-file="utils.py"><span>utils.py</span><span>Helpers</span></button></li>
+                <li><button class="file-btn" data-file="main.py"><span>main.py</span><span>Driver</span></button></li>
+            </ul>
+        </aside>
+
+        <main class="code-main">
+            <h2 id="code-title">Select a file from the sidebar</h2>
+            <div class="code-explainer" id="code-explainer">
+                Click a file name on the left to view its source and a brief explanation of its purpose.
+            </div>
+            <pre><code class="language-python" id="code-content">
+# Source code will appear here.
+            </code></pre>
+        </main>
+    </div>
+
+    <footer>
+        © 2025 BatterySim ODE Project
+    </footer>
+
+    <!-- Scroll-driven charging + reveal -->
+    <script>
+        document.addEventListener("scroll", () => {
+            const scrollY = window.scrollY;
+            const docHeight = document.body.scrollHeight - window.innerHeight;
+            const progress = docHeight > 0 ? (scrollY / docHeight) * 100 : 0;
+
+            const fill = document.getElementById("charging-fill");
+            if (fill) fill.style.height = progress + "%";
+
+            document.querySelectorAll("section").forEach(sec => {
+                const rect = sec.getBoundingClientRect();
+                if (rect.top < window.innerHeight - 80) {
+                    sec.classList.add("visible");
+                }
+            });
+        });
+
+        window.addEventListener("load", () => {
+            document.dispatchEvent(new Event("scroll"));
+        });
+    </script>
+
+    <script src="scripts/code_viewer.js"></script>
+</body>
+</html>
