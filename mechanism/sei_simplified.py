@@ -65,7 +65,7 @@ class SEI:
             k_T = k0 * exp(-Ea / (R * T))  (temperature-dependent rate constant)
             f_QI = (1 + 2 * soc^2) * (1 + 0.1 * |I|)  (stress function)
         """
-        voltage, current, resistance, temperature, soc, sei = unpack_state(y)
+        voltage, current, resistance, temperature, soc, sei, transient = unpack_state(y)
 
         k_T = self.k0 * self.arrhenius_factor(temperature)
         f_QI = self.stress_function(soc, current)
@@ -76,5 +76,6 @@ class SEI:
         d_resistance = 0
         d_temperature = 0
         d_soc = 0
+        d_transient = 0
 
-        return pack_state(d_voltage, d_current, d_resistance, d_temperature, d_soc, d_sei)
+        return pack_state(d_voltage, d_current, d_resistance, d_temperature, d_soc, d_sei, d_transient)

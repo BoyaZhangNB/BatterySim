@@ -10,7 +10,7 @@ class UpdateState:
     def update_y(self, initial_conditions, y, v_source):
         voltage, current, resistance, temp, soc, sei, transient = unpack_state(y)
 
-        updated_current = (v_source - voltage + transient) / resistance  # update current based on overpotential, resistance
+        updated_current = (v_source - voltage - transient) / resistance  # update current based on overpotential, resistance
         updated_resistance = initial_conditions['resistance'] * np.exp((self.ea / self.k) * 
                                 (1/temp - 1/self.ref_Temp))
         updated_voltage = get_ocv_from_soc(soc)  # get OCV from SOC percentage

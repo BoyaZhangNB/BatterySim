@@ -42,4 +42,4 @@ class Thermo:
         grad_T += self.ohmic_heating(y, t, v_source)
         grad_T += self.cooling_law(y, t, v_source)
         
-        return pack_state(0, 0, 0, grad_T, 0, 0)
+        return pack_state(0, 0, 0, grad_T, 0, 0, 0)

@@ -47,7 +47,7 @@ def plot_simulation_data(log_data, variables_to_plot):
 
 
 
-def get_ocv_from_soc(self, soc):
+def get_ocv_from_soc(soc):
     """
     Function to get the Open Circuit Voltage (OCV) for a given State of Charge (SOC) percentage for a lithium ion battery.
     Uses linear interpolation between data points from the provided chart.

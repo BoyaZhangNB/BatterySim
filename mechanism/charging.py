@@ -25,4 +25,4 @@ class Charging:
     def get_gradient(self, y, t, v_source):
         grad_soc = self.get_SOC(y, t, v_source)
 
-        return pack_state(0, 0, 0, 0, grad_soc, 0)
+        return pack_state(0, 0, 0, 0, grad_soc, 0, 0)

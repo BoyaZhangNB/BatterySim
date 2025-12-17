@@ -22,18 +22,20 @@ class Transient:
         self.C = C  # capacitance
 
     def rc_dynamics(self, y, t, v_source):
-        """dV/dt = -1/(R*C) * V + 1/C * I
+        """dVc/dt = -1/(RC) * Vc + 1/C * I
         
         where:
-        - V is the overpotential (y[6])
-        - I is the current (y[1])
+        - Vc is the transient voltage
+        - I is the current
         """
-        grad_V = (-1.0 / (self.R * self.C)) * y[6] + (1.0 / self.C) * y[1]
-        return grad_V
+        voltage, current, resistance, temperature, soc, sei, transient = unpack_state(y)
+
+        grad_Vc = (-1.0 / (self.R * self.C)) * transient + (1.0 / self.C) * current
+        return grad_Vc
 
     def get_gradient(self, y, t, v_source):
-        grad_V = 0
+        grad_Vc = 0
 
-        grad_V += self.rc_dynamics(y, t, v_source)
+        grad_Vc += self.rc_dynamics(y, t, v_source)
         
-        return pack_state(0, 0, 0, 0, 0, 0, grad_V)
+        return pack_state(0, 0, 0, 0, 0, 0, grad_Vc)
