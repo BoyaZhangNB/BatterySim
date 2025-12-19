@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Interactive Battery Simulation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Shared styles -->
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <!-- Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+
+    <style>
+        /* ===============================
+           LAYOUT FIXES (INTEGRATION)
+        =============================== */
+
+        .sim-layout {
+            width: 100%;
+            max-width: 1200px;
+            margin: 40px auto 50px auto;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 28px;
+            align-items: start;
+        }
+
+        @media (max-width: 950px) {
+            .sim-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .sim-controls {
+            position: sticky;
+            top: 90px;
+            background: var(--glass);
+            border-radius: var(--radius);
+            padding: 18px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 18px 45px rgba(15,23,42,0.85);
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0,1fr));
+            gap: 10px 12px;
+        }
+
+        .control-grid label,
+        .advanced-grid label {
+            font-size: 0.75rem;
+            color: var(--subtext);
+        }
+
+        .control-grid input,
+        .control-grid select,
+        .advanced-grid input,
+        .advanced-grid select {
+            width: 100%;
+            padding: 7px 9px;
+            border-radius: 8px;
+            border: 1px solid rgba(148,163,184,0.7);
+            background: rgba(15,23,42,0.9);
+            color: var(--text);
+            font-size: 0.85rem;
+        }
+
+        .advanced-toggle {
+            margin-top: 14px;
+            font-size: 0.8rem;
+            color: var(--subtext);
+            cursor: pointer;
+        }
+
+        .advanced-panel {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 12px;
+            background: rgba(15,23,42,0.6);
+            display: none;
+        }
+
+        .advanced-panel.visible {
+            display: block;
+        }
+
+        .advanced-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0,1fr));
+            gap: 10px 12px;
+        }
+
+        .sim-controls .btn {
+            margin-top: 18px;
+            width: 100%;
+            padding: 10px 0;
+            border-radius: 12px;
+            font-size: 0.9rem;
+        }
+
+        .plots {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 18px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Scroll charging bar -->
+    <div id="charging-bar"><div id="charging-fill"></div></div>
+
+    <!-- Header -->
+    <header>
+        <nav>
+            <div class="title">
+                <div class="batt-nav"><div class="batt-fill"></div></div>
+                <span>BatterySim ODE Project</span>
+            </div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="policies.html">Policies</a></li>
+                <li><a href="equations.html">Equations</a></li>
+                <li><a style="color:var(--accent)">Simulation</a></li>
+                <li><a href="code.html">Code</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section>
+        <h2>Interactive Battery Charging Simulation</h2>
+        <p>
+            Compare charging strategies using a physics-based lithium-ion battery model.
+            Simulations stop at <strong>90% SOC</strong> to highlight fast-charging trade-offs.
+        </p>
+    </section>
+<div class="sim-layout">
+
+    <!-- LEFT COLUMN: CONTROLS -->
+    <div class="sim-controls">
+        <h2>Simulation Controls</h2>
+
+        <div class="control-grid">
+            <div>
+                <label>Charging Mode</label>
+                <select id="policy-select">
+                    <option value="CV">Constant Voltage</option>
+                    <option value="CC">Constant Current</option>
+                    <option value="CCCV">CC → CV</option>
+                    <option value="CCVPulse">CCV Pulse</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Voltage (V)</label>
+                <input id="voltage-input" type="number" value="4.2" step="0.05">
+            </div>
+
+            <div>
+                <label>Current (A)</label>
+                <input id="current-input" type="number" value="50" step="1">
+            </div>
+
+            <div>
+                <label>Initial SOC</label>
+                <input id="initial-soc" type="number" value="0.0" step="0.01">
+            </div>
+        </div>
+
+        <div class="advanced-toggle" onclick="toggleAdvanced()">
+            ▾ Advanced Parameters
+        </div>
+
+        <div class="advanced-panel" id="advanced-panel">
+            <div class="advanced-grid">
+                <div>
+                    <label>Pulse ON (s)</label>
+                    <input id="pulse-on" type="number" value="2">
+                </div>
+
+                <div>
+                    <label>Pulse OFF (s)</label>
+                    <input id="pulse-off" type="number" value="0.25">
+                </div>
+
+                <div>
+                    <label>Initial Temp (K)</label>
+                    <input id="initial-temp" type="number" value="298">
+                </div>
+
+                <div>
+                    <label>Initial R (Ω)</label>
+                    <input id="R0" type="number" value="0.03">
+                </div>
+
+                <div>
+                    <label>Capacity (Ah)</label>
+                    <input id="C_nom" type="number" value="200">
+                </div>
+
+                <div>
+                    <label>SEI Model</label>
+                    <select id="sei-model">
+                        <option value="simplified">Simplified</option>
+                        <option value="full">Full</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn" onclick="runSimulation()">
+            Run Simulation (Selected Policy)
+        </button>
+
+        <div class="sim-status" id="sim-status">
+            Initializing battery model…
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN: PLOTS -->
+    <div class="plots">
+        <div class="plot-card">
+            <h3>SOC vs Time</h3>
+            <div id="soc-plot" class="plot"></div>
+        </div>
+
+        <div class="plot-card">
+            <h3>Current vs Time</h3>
+            <div id="current-plot" class="plot"></div>
+        </div>
+
+        <div class="plot-card">
+            <h3>Temperature vs Time</h3>
+            <div id="temperature-plot" class="plot"></div>
+        </div>
+
+        <div class="plot-card">
+            <h3>SEI Growth vs Time</h3>
+            <div id="sei-plot" class="plot"></div>
+        </div>
+    </div>
+
+</div>
+
+
+    </section>
+
+    <footer>© 2025 BatterySim ODE Project</footer>
+
+    <script>
+        function toggleAdvanced() {
+            document.getElementById("advanced-panel").classList.toggle("visible");
+        }
+
+        document.addEventListener("scroll", () => {
+            const fill = document.getElementById("charging-fill");
+            const p = window.scrollY /
+                (document.body.scrollHeight - window.innerHeight) * 100;
+            if (fill) fill.style.height = p + "%";
+        });
+    </script>
+
+    <script src="scripts/plot.js"></script>
+    <script src="scripts/pyodide_loader.js"></script>
+</body>
+</html>
