@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Battery Charging ODE Simulation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Main stylesheet -->
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- MathJax (for any inline equations we might add) -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <!-- Page-specific styles (hero + battery animation) -->
+    <style>
+        .hero {
+            width: 85%;
+            margin: 30px auto 10px auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .hero-text {
+            flex: 1 1 280px;
+        }
+
+        .hero-text h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+
+        .hero-text p {
+            font-size: 1rem;
+        }
+
+        .hero-battery {
+            flex: 0 0 260px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .battery-shell {
+            width: 140px;
+            height: 260px;
+            border-radius: 18px;
+            border: 4px solid var(--accent);
+            padding: 6px;
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            background: #111827;
+        }
+
+        .battery-cap {
+            position: absolute;
+            top: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 46px;
+            height: 12px;
+            border-radius: 8px 8px 4px 4px;
+            background: #d1d5db;
+        }
+
+        .battery-fill {
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            background: linear-gradient(180deg, var(--accent-glow), var(--accent));
+            position: relative;
+            overflow: hidden;
+            animation: batteryCharge 4s infinite;
+            box-shadow: 0 0 16px var(--accent-glow);
+        }
+
+        .battery-fill::before {
+            content: "";
+            position: absolute;
+            top: -40%;
+            left: -30%;
+            width: 200%;
+            height: 50%;
+            background: rgba(255,255,255,0.2);
+            transform: rotate(-20deg);
+            animation: batteryShine 4s infinite;
+        }
+
+        .battery-level-markers {
+            position: absolute;
+            inset: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .battery-level-markers span {
+            width: 100%;
+            height: 2px;
+            background: rgba(0,0,0,0.25);
+        }
+
+        @keyframes batteryCharge {
+            0% {
+                transform: scaleY(0.1);
+                transform-origin: bottom;
+            }
+            50% {
+                transform: scaleY(1);
+                transform-origin: bottom;
+            }
+            100% {
+                transform: scaleY(0.1);
+                transform-origin: bottom;
+            }
+        }
+
+        @keyframes batteryShine {
+            0% {
+                top: 110%;
+            }
+            100% {
+                top: -60%;
+            }
+        }
+
+        .hero-tagline {
+            color: var(--accent);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
+        }
+
+        .hero-actions {
+            margin-top: 18px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hero-actions a.btn {
+            text-decoration: none;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(16,24,39,0.06);
+            font-size: 0.82rem;
+            color: var(--subtext);
+            margin-right: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Charging scroll bar -->
+    <div id="charging-bar">
+        <div id="charging-fill"></div>
+    </div>
+
+    <!-- Header + Nav -->
+   <header>
+    <nav>
+        <div class="title">
+            <div class="batt-nav"><div class="batt-fill"></div></div>
+            <span>BatterySim ODE Project</span>
+        </div>
+        <ul>
+            <li><a style="color: var(--accent)">Home</a></li>
+            <li><a href="policies.html">Policies &amp; Mechanisms</a></li>
+            <li><a href="equations.html">Equations</a></li>
+            <li><a href="simulate.html">Simulation</a></li>
+            <li><a href="code.html">Code</a></li>
+        </ul>
+    </nav>
+</header>
+
+
+    <!-- Hero Section -->
+    <div class="hero">
+        <div class="hero-text">
+            <div class="hero-tagline">ODE-Based Li-ion Charging Model</div>
+            <h1>Battery Charging Dynamics & Degradation Modeling</h1>
+            <p>
+                This project simulates lithium-ion battery charging using a system of
+                coupled ordinary differential equations. We capture state-of-charge (SOC),
+                SEI growth, thermal behaviour, and transient overpotentials under different
+                charging policies such as constant voltage, constant current, and pulsed profiles.
+            </p>
+            <div style="margin-top: 10px;">
+                <span class="pill">SOC evolution</span>
+                <span class="pill">Thermal model</span>
+                <span class="pill">SEI growth</span>
+                <span class="pill">Custom charging policies</span>
+            </div>
+            <div class="hero-actions">
+                <a class="btn" href="simulate.html">Run Simulation</a>
+                <a class="btn" href="equations.html" style="background:#0f172a; color:#e5e7eb;">
+                    View ODE System
+                </a>
+            </div>
+        </div>
+
+        <div class="hero-battery">
+            <div class="battery-shell">
+                <div class="battery-cap"></div>
+                <div class="battery-fill"></div>
+                <div class="battery-level-markers">
+                    <span></span><span></span><span></span><span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Sections -->
+
+    <section id="overview">
+        <h2>Project Overview</h2>
+        <p>
+            The core of this work is an ODE-based model of a lithium-ion cell under charge.
+            The state vector is:
+        </p>
+        <p>
+            \[
+                y(t) = \big[ V(t), I(t), R(t), T(t), \text{SOC}(t), \text{SEI}(t), V_{\text{transient}}(t) \big]
+            \]
+        </p>
+        <p>
+            Each mechanism (charging, thermal dynamics, SEI formation, and transient RC behavior)
+            contributes a set of differential equations. These are summed into a total derivative
+            \( \frac{dy}{dt} \), which is integrated via a 4th-order Runge–Kutta (RK4) scheme.
+        </p>
+    </section>
+
+    <section id="structure">
+        <h2>Model Structure</h2>
+
+        <div class="card">
+            <h3>Mechanisms</h3>
+            <p>
+                The model is modular: each physical mechanism is implemented in its own class with a
+                <code>get_gradient(y, t, v_source)</code> method returning contributions to
+                \( \frac{dy}{dt} \).
+            </p>
+            <ul>
+                <li><strong>Charging</strong>: SOC update based on applied current and nominal capacity.</li>
+                <li><strong>Thermo</strong>: Ohmic heating and cooling toward ambient temperature.</li>
+                <li><strong>SEI</strong>: Growth of the solid–electrolyte interphase, impacting long-term degradation.</li>
+                <li><strong>Transient</strong> (optional): RC dynamics capturing overpotential effects.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Charging Policies</h3>
+            <p>
+                Charging is driven by a set of control policies from <code>charging_policy.py</code>.
+                Each policy exposes a <code>get_voltage(t, y)</code> method that computes the source
+                voltage based on the current state.
+            </p>
+            <ul>
+                <li>Constant Voltage (CV)</li>
+                <li>Constant Current (CC)</li>
+                <li>Pulse Charging</li>
+                <li>Sinusoidal Charging</li>
+            </ul>
+            <p>
+                Visit the <a href="policies.html">Policies &amp; Mechanisms</a> page for details.
+            </p>
+        </div>
+    </section>
+
+    <section id="goals">
+        <h2>Goals of the Project</h2>
+        <ul>
+            <li>Compare how different charging policies affect SOC, temperature, and SEI growth.</li>
+            <li>Visualize transient responses during aggressive or high-frequency charging.</li>
+            <li>Connect physically meaningful ODEs to observable battery behavior.</li>
+        </ul>
+        <p>
+            Use the <a href="simulate.html">Simulation</a> page to interactively explore how
+            different policies influence battery state over time.
+        </p>
+    </section>
+
+    <footer>
+        © 2025 BatterySim ODE Project
+    </footer>
+
+    <!-- Scroll-driven charging + section reveal -->
+    <script>
+        document.addEventListener("scroll", () => {
+            const scrollY = window.scrollY;
+            const docHeight = document.body.scrollHeight - window.innerHeight;
+            const progress = docHeight > 0 ? (scrollY / docHeight) * 100 : 0;
+
+            const fill = document.getElementById("charging-fill");
+            if (fill) {
+                fill.style.height = progress + "%";
+            }
+
+            // Reveal sections smoothly
+            document.querySelectorAll("section").forEach(sec => {
+                const rect = sec.getBoundingClientRect();
+                if (rect.top < window.innerHeight - 80) {
+                    sec.classList.add("visible");
+                }
+            });
+        });
+
+        // Trigger initial visibility on load
+        window.addEventListener("load", () => {
+            document.dispatchEvent(new Event("scroll"));
+        });
+    </script>
+</body>
+</html>
