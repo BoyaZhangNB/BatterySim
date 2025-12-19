@@ -76,7 +76,7 @@ class UpdateState:
         # Update resistance using Arrhenius equation for temperature dependence
         # R(T) = R_0 * exp(E_a/k * (1/T - 1/T_ref))
         updated_resistance = initial_conditions['resistance'] * np.exp((self.ea / self.k) * 
-                                (1/temp - 1/self.ref_Temp))
+                                (1/temp - 1/self.ref_Temp)) * (1 + 5.0 * sei)  # Simple SEI effect on resistance
         
         # Update open circuit voltage based on state of charge
         updated_voltage = get_ocv_from_soc(soc)

@@ -116,6 +116,137 @@
                 \]
             </p>
         </div>
+
+        <!-- Constant Current - Constant Voltage -->
+        <div class="card">
+            <h3>5. Constant Current → Constant Voltage (CCCV)</h3>
+            <p>A two-stage charging strategy combining CC and CV phases:</p>
+            <ul>
+                <li><strong>Stage 1 (CC):</strong> Constant current until battery voltage reaches target</li>
+                <li><strong>Stage 2 (CV):</strong> Constant voltage with decreasing current as battery fills</li>
+            </ul>
+            <p>
+                \[
+                    V_{\text{source}}(t) =
+                    \begin{cases}
+                        I_{set} \cdot R(t) + \text{OCV}, & \text{OCV} < V_{CV} \\
+                        V_{CV}, & \text{OCV} \geq V_{CV}
+                    \end{cases}
+                \]
+            </p>
+            <p><strong>Real-world usage:</strong> Standard charging in smartphones and EVs.</p>
+        </div>
+
+        <!-- CC-CV-Pulse -->
+        <div class="card">
+            <h3>6. CC → CV → Pulse (CCCVPulse)</h3>
+            <p>A three-stage advanced charging strategy:</p>
+            <ul>
+                <li><strong>Stage 1 (CC):</strong> High current charging from 0-80% SoC</li>
+                <li><strong>Stage 2 (CV):</strong> Constant voltage from 80-95% SoC for safety</li>
+                <li><strong>Stage 3 (Pulse):</strong> Low-frequency pulses for final 5% topping</li>
+            </ul>
+            <p>
+                \[
+                    V_{\text{source}}(t) =
+                    \begin{cases}
+                        I_{CC} \cdot R(t) + \text{OCV}, & \text{SOC} < 0.80 \\
+                        V_{CV}, & 0.80 \leq \text{SOC} < 0.95 \\
+                        I_{pulse}|\sin(2\pi f t)| \cdot R(t) + \text{OCV}, & \text{SOC} \geq 0.95
+                    \end{cases}
+                \]
+            </p>
+            <p><strong>Real-world usage:</strong> Premium fast chargers (Samsung, OnePlus, Tesla).</p>
+        </div>
+
+        <!-- CV-Pulse -->
+        <div class="card">
+            <h3>7. Constant Voltage → Pulse (CVPulse)</h3>
+            <p>A two-stage strategy starting from constant voltage with pulse optimization:</p>
+            <ul>
+                <li><strong>Stage 1 (CV):</strong> Constant voltage charging (constant endpoint voltage)</li>
+                <li><strong>Stage 2 (Pulse):</strong> Low-amplitude pulses during CV phase</li>
+            </ul>
+            <p>
+                \[
+                    V_{\text{source}}(t) = V_{CV} + I_{pulse}|\sin(2\pi f t)| \cdot \epsilon
+                \]
+            </p>
+            <p>where \(\epsilon\) is a small modulation amplitude.</p>
+            <p><strong>Use case:</strong> Optimizing CV-based charging with reduced stress.</p>
+        </div>
+    </section>
+
+    <!-- Mechanisms -->
+    <section class="mech-section">
+        <h2>Policy Comparison Results</h2>
+        <p>
+            Simulation results for a 3 Ah battery comparing all charging policies using 
+            <strong>fair comparison criteria</strong>: all policies target the same final 
+            voltage (4.0V) to ensure consistent endpoints.
+        </p>
+        
+        <div class="card">
+            <h3>Performance Metrics (3 Ah Battery)</h3>
+            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+                <thead>
+                    <tr style="background: rgba(34,211,238,0.1); border-bottom: 2px solid rgba(34,211,238,0.3);">
+                        <th style="padding: 10px; text-align: left; border: 1px solid rgba(148,163,184,0.3);">Policy</th>
+                        <th style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.3);">Time (hrs)</th>
+                        <th style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.3);">Peak Temp (K)</th>
+                        <th style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.3);">Avg Temp (K)</th>
+                        <th style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.3);">SEI Growth</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid rgba(148,163,184,0.2);">
+                        <td style="padding: 10px; border: 1px solid rgba(148,163,184,0.2);"><strong>CC_20A</strong></td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">0.1876</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">305.85</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">303.12</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">2.51e-10</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(148,163,184,0.2);">
+                        <td style="padding: 10px; border: 1px solid rgba(148,163,184,0.2);"><strong>CV_4.2V</strong></td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">0.1174</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">357.58</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">311.64</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">3.38e-10</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(148,163,184,0.2);">
+                        <td style="padding: 10px; border: 1px solid rgba(148,163,184,0.2);"><strong>CCCV_20A_4.0V</strong></td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">0.1877</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">305.82</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">303.12</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">2.51e-10</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(148,163,184,0.2);">
+                        <td style="padding: 10px; border: 1px solid rgba(148,163,184,0.2);"><strong>CCCVPulse_20A_4.0V</strong></td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">0.2504</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">305.82</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">301.75</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">2.76e-10</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(148,163,184,0.2);">
+                        <td style="padding: 10px; border: 1px solid rgba(148,163,184,0.2);"><strong>CVPulse_4.2V</strong></td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">0.1011</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">370.12</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">316.40</td>
+                        <td style="padding: 10px; text-align: center; border: 1px solid rgba(148,163,184,0.2);">3.99e-10</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Key Insights</h3>
+            <ul>
+                <li><strong>Fastest:</strong> CVPulse (0.101 hrs) - but highest peak temperature and SEI</li>
+                <li><strong>Safest:</strong> CC_20A & CCCV_20A (lowest temperatures and SEI)</li>
+                <li><strong>Best Balance:</strong> CCCVPulse (reasonable speed with excellent thermal management)</li>
+                <li><strong>CC vs CCCV Equivalence:</strong> Both 20A policies virtually identical—battery reaches 4.0V exactly at 100% SoC</li>
+            </ul>
+        </div>
     </section>
 
     <!-- Mechanisms -->

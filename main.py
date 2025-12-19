@@ -28,7 +28,9 @@ Example:
 """
 import os
 import numpy as np
+import pandas as pd
 
+from charging_policy import CVPulse
 from mechanism.thermo import Thermo
 from mechanism.charging import Charging
 from mechanism.sei import SEI
@@ -43,14 +45,21 @@ from utils import *
 # ==================== Mechanism Initialization ====================
 # Initialize physical mechanisms that govern battery behavior
 _thermo = Thermo(mass=1.0, c=0.5, k=3, ambient_temp=298)  # Thermal dynamics: 1kg mass, 0.5 J/(kg*K) specific heat
-_charging = Charging(C_nominal=2000) # Charging dynamics: 2000 Ah nominal capacity
+_charging = Charging(C_nominal=3) # Charging dynamics: 3 Ah nominal capacity (3000 mAh)
 _sei = SEI()  # Solid-Electrolyte Interphase layer growth
 _transient = Transient(R=0.008, C=5000) # RC circuit dynamics: 8 mΩ resistance, 5000 F capacitance
 
 # ==================== Charging Policy Selection ====================
 # Define available charging policies (uncomment to use different policies)
-_cv = CV(voltage=3.7) # Constant voltage charging at 3.7V
-_cc = CC(current=25)  # Constant current charging at 25A
+# FAIR COMPARISON: All policies use 20A max current, same 3 Ah battery, same 100% SoC target
+# CV voltage: 4.0V for CV/CVPulse, 3.5V for CCCV/CCCVPulse (two-stage policies)
+
+_cc = CC(current=20)                                           # Pure constant current at 20A
+_cv = CV(voltage=3.7)                                          # Pure constant voltage at 4.0V
+_cccv = CCCV(cc_current=20, cv_voltage=4.0)                   # CC-CV: 20A until 4.0V, then constant 4.0V
+_cccp = CCCVPulse(cc_current=20, cv_voltage=4.0, pulse_current=20, pulse_freq=1)  # CC-CV-Pulse: 20A→4.0V→pulse
+_cvp = CVPulse(cv_voltage=4.0, pulse_current=20, pulse_freq=1) # CV-Pulse: start at 4.0V with pulses
+
 _pulse = PulseCharging(current=50, pulse_time=2, rest_time=0.25)  # Pulse charging: 50A for 2s, rest 0.25s
 _sinusoidal = SinusoidalCharging(current=60, frequency=4)  # Sinusoidal charging: 60A amplitude, 4Hz frequency
 
@@ -58,7 +67,7 @@ updatestate = UpdateState()
 
 # ==================== Simulation Configuration ====================
 mechanisms = [_thermo, _charging, _sei, _transient]  # List of mechanism instances from mechanism/*.py
-policies = [_cv, _cc, _pulse, _sinusoidal]  # Charging policies to simulate (can add multiple policies)
+policies = [_cc, _cv, _cccv, _cccp, _cvp]  # Fair comparison: 5 distinct strategies at 20A
 dt = 0.1  # Time step in seconds (smaller = more accurate but slower)
 cycles = 10  # Number of charging cycles to simulate per policy
 
@@ -227,6 +236,7 @@ def simulate_charging_cycle(cycles, policy):
         # Simulate single cycle and append to log
         cycle_log = simulate_charging(sei, policy)
         log.append(cycle_log)
+        sei = cycle_log[-1][6]  # Update SEI for next cycle (index 6 in log tuple)
 
     return log
 
@@ -241,17 +251,22 @@ def main():
     
     Simulates battery charging for all configured policies and saves results to CSV files.
     Each policy generates a separate log file in the log/ directory.
+    Also generates a metrics summary file comparing policies on key metrics.
     
     Output Files:
-        - log/log_{policy_name}.csv: CSV file with columns:
+        - log/log_{policy_name}_cycle{i}.csv: CSV file with columns:
           time, voltage, current, resistance, temperature, soc, sei, transient_voltage
+        - log/policy_metrics_summary.csv: Comparison metrics for all policies
           
     Process:
         1. Iterates through all policies defined in the 'policies' list
         2. Runs simulate_charging_cycle() for each policy
         3. Saves results to CSV with descriptive filename
-        4. Prints completion message for each policy
+        4. Computes and saves metrics (charging time, peak temp, final SEI, etc.)
+        5. Prints completion message for each policy
     """
+    metrics_list = []
+    
     for policy in policies:
         # Simulate charging cycles for this policy
         policy_log = simulate_charging_cycle(cycles, policy)
@@ -259,7 +274,7 @@ def main():
         os.makedirs("log", exist_ok=True)
         headers = "time,voltage,current,resistance,temperature,soc,sei,transient voltage"
 
-        # Save each cycle separately
+        # Save each cycle separately and compute metrics
         for i, cycle_log in enumerate(policy_log, start=1):
 
             # Convert list of tuples into array
@@ -269,8 +284,41 @@ def main():
             np.savetxt(filename, arr, delimiter=",", header=headers, comments='')
 
             print(f"Saved {filename}")
+            
+            # Compute metrics for this cycle
+            if i == 1:  # Only analyze first cycle for consistency
+                cycle_arr = np.array(cycle_log)
+                
+                # Extract columns: t, voltage, current, resistance, temperature, soc, sei, transient
+                time_col = cycle_arr[:, 0]
+                temp_col = cycle_arr[:, 4]
+                sei_col = cycle_arr[:, 6]
+                
+                charging_time = time_col[-1]  # Total charging time in seconds
+                peak_temp = np.max(temp_col)  # Maximum temperature
+                avg_temp = np.mean(temp_col)  # Average temperature
+                final_sei = sei_col[-1]  # Final SEI thickness
+                sei_growth = final_sei - initial_sei  # SEI growth in this cycle
+                
+                metrics_list.append({
+                    'Policy': policy.name,
+                    'Charging_Time_Hours': charging_time / 3600,
+                    'Peak_Temp_K': peak_temp,
+                    'Avg_Temp_K': avg_temp,
+                    'Final_SEI': final_sei,
+                    'SEI_Growth': sei_growth
+                })
 
         print(f"Simulation with policy {policy.name} completed.")
+    
+    # Save metrics summary
+    if metrics_list:
+        metrics_df = pd.DataFrame(metrics_list)
+        metrics_file = "log/policy_metrics_summary.csv"
+        metrics_df.to_csv(metrics_file, index=False)
+        print(f"\nMetrics summary saved to {metrics_file}")
+        print("\nPolicy Comparison:")
+        print(metrics_df.to_string(index=False))
     
 if __name__ == "__main__":
     main()
