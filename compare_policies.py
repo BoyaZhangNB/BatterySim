@@ -21,12 +21,155 @@ import numpy as np
 import glob
 import os
 from datetime import datetime
+from config import POLICY_DEFINITIONS, EXPERIMENT_CONFIG
 
 # ==============================
 # CONFIGURATION
 # ==============================
 LOG_DIR = "log"
 METRICS_FILE = f"{LOG_DIR}/policy_metrics_summary.csv"
+
+# Check for sweep results and use the most recent one if available and valid
+import glob as glob_module
+sweep_files = sorted(glob_module.glob(f"{LOG_DIR}/sweep_results_*.csv"), reverse=True)
+if sweep_files:
+    # Verify sweep results have valid temperature data (not all ~1.0K)
+    test_df = pd.read_csv(sweep_files[0])
+    if 'peak_temp_K' in test_df.columns:
+        temps = test_df['peak_temp_K'].values
+        # Check if temps are reasonable (between 250K and 380K)
+        if np.mean(temps) > 250:  # Valid K values, not normalized
+            METRICS_FILE = sweep_files[0]
+            print(f"✓ Using sweep results: {sweep_files[0]}")
+    if METRICS_FILE == f"{LOG_DIR}/policy_metrics_summary.csv":
+        print(f"Using standard metrics (sweep temp data invalid)")
+else:
+    print(f"Using standard metrics: {METRICS_FILE}")
+
+
+def extract_policy_params(policy_name):
+    """
+    Extract charging parameters from policy definition.
+    
+    Returns a dict with relevant parameters for this policy.
+    """
+    if policy_name not in POLICY_DEFINITIONS:
+        return {}
+    
+    policy_def = POLICY_DEFINITIONS[policy_name]
+    params = policy_def.get('params', {})
+    
+    # Extract relevant parameters
+    result = {}
+    if 'current' in params:
+        result['CC_current'] = params['current']
+    if 'cv_voltage' in params:
+        result['CV_voltage'] = params['cv_voltage']
+    if 'voltage' in params:
+        result['CV_voltage'] = params['voltage']
+    if 'pulse_current' in params:
+        result['pulse_current'] = params['pulse_current']
+    if 'pulse_freq' in params:
+        result['pulse_freq'] = params['pulse_freq']
+    
+    return result
+
+
+def extract_policy_type_and_variant(policy_name):
+    """
+    Extract the base policy type and variant parameters.
+    
+    Returns (base_type, variant_key, variant_value)
+    E.g., 'CCCV_20A_4.2V' -> ('CCCV', 'CV_voltage', 4.2)
+    """
+    parts = policy_name.split('_')
+    base_type = parts[0]  # CC, CV, CCCV, CVPulse, etc.
+    
+    # Infer variant from policy name pattern
+    if base_type == 'CC':
+        # CC_20A -> variant is current value
+        try:
+            current = float(parts[1].rstrip('A'))
+            return (base_type, 'current', current)
+        except:
+            return (base_type, None, None)
+    
+    elif base_type == 'CV':
+        # CV_4.2V -> variant is voltage value
+        try:
+            voltage = float(parts[1].rstrip('V'))
+            return (base_type, 'voltage', voltage)
+        except:
+            return (base_type, None, None)
+    
+    elif base_type == 'CVPulse':
+        # CVPulse_4.2V -> variant is CV voltage
+        try:
+            voltage = float(parts[1].rstrip('V'))
+            return (base_type, 'cv_voltage', voltage)
+        except:
+            return (base_type, None, None)
+    
+    elif base_type == 'CCCV' or base_type == 'CCCVPulse':
+        # CCCV_20A_4.2V or CCCVPulse_20A_4.2V -> variant is CV voltage (second param)
+        try:
+            voltage = float(parts[2].rstrip('V'))
+            return (base_type, 'cv_voltage', voltage)
+        except:
+            return (base_type, None, None)
+    
+    return (base_type, None, None)
+
+
+def group_policies_by_type(policies, metrics_df):
+    """
+    Group policies by type and sort by variant parameter.
+    Returns dict: {base_type: [(policy_name, metric_value, variant_value), ...]}
+    """
+    grouped = {}
+    
+    for idx, policy in enumerate(policies):
+        base_type, variant_key, variant_val = extract_policy_type_and_variant(policy)
+        
+        if base_type not in grouped:
+            grouped[base_type] = []
+        
+        grouped[base_type].append({
+            'policy': policy,
+            'index': idx,
+            'variant_key': variant_key,
+            'variant_val': variant_val
+        })
+    
+    # Sort each group by variant value
+    for base_type in grouped:
+        grouped[base_type].sort(key=lambda x: x['variant_val'] if x['variant_val'] is not None else 0)
+    
+    return grouped
+
+
+def generate_policy_summary():
+    """
+    Generate a summary string of all policies and their parameters.
+    """
+    summary_parts = []
+    for policy_name in EXPERIMENT_CONFIG.get('policies', []):
+        params = extract_policy_params(policy_name)
+        
+        if not params:
+            summary_parts.append(policy_name)
+        else:
+            parts = []
+            if 'CC_current' in params:
+                parts.append(f"CC={params['CC_current']}A")
+            if 'CV_voltage' in params:
+                parts.append(f"CV={params['CV_voltage']}V")
+            if 'pulse_current' in params:
+                parts.append(f"Pulse={params['pulse_current']}A@{params.get('pulse_freq', 1)}Hz")
+            
+            summary_parts.append(f"{policy_name} ({', '.join(parts)})")
+    
+    return " | ".join(summary_parts)
 
 # ==============================
 # LOAD METRICS
@@ -37,15 +180,38 @@ if not os.path.exists(METRICS_FILE):
     exit(1)
 
 metrics_df = pd.read_csv(METRICS_FILE)
+
+# Handle both sweep results and standard metrics formats
+# Rename columns to standardized format
+column_mapping = {
+    'Policy': 'policy',
+    'policy': 'policy',
+    'Charging_Time_Hours': 'charging_time_hours',
+    'charging_time_hours': 'charging_time_hours',
+    'Peak_Temp_K': 'peak_temp_k',
+    'peak_temp_k': 'peak_temp_k',
+    'peak_temp_K': 'peak_temp_k',
+    'Avg_Temp_K': 'avg_temp_k',
+    'avg_temp_k': 'avg_temp_k',
+    'avg_temp_K': 'avg_temp_k',
+    'SEI_Growth': 'sei_growth',
+    'sei_growth': 'sei_growth',
+    'Final_SEI': 'final_sei',
+    'final_sei': 'final_sei',
+}
+
+# Apply column mapping
+metrics_df = metrics_df.rename(columns={old: new for old, new in column_mapping.items() if old in metrics_df.columns})
+
 print(f"Loaded metrics for {len(metrics_df)} policies:")
-print(metrics_df.to_string(index=False))
+print(metrics_df[['policy', 'charging_time_hours', 'peak_temp_k', 'sei_growth']].to_string(index=False))
 
 # ==============================
 # LOAD CYCLE DATA FOR FIRST CYCLE
 # ==============================
 policy_data = {}
 for idx, row in metrics_df.iterrows():
-    policy_name = row['Policy']
+    policy_name = row['policy']
     
     # Find the first cycle file for this policy
     pattern = f"{LOG_DIR}/log_{policy_name}_cycle1.csv"
@@ -62,107 +228,204 @@ for idx, row in metrics_df.iterrows():
 # CREATE OPTIMIZED 2x2 COMPARISON PLOT
 # ==============================
 plt.style.use("seaborn-v0_8-darkgrid")
-fig = plt.figure(figsize=(14, 10))
+fig = plt.figure(figsize=(16, 10))
 gs = fig.add_gridspec(2, 2, hspace=0.35, wspace=0.3)
 
 # Extract data
-policies = metrics_df['Policy'].values
-times_hours = metrics_df['Charging_Time_Hours'].values
+policies = metrics_df['policy'].values
+times_hours = metrics_df['charging_time_hours'].values
 times_min = times_hours * 60  # Convert to minutes
-peak_temps = metrics_df['Peak_Temp_K'].values
-sei_growth = metrics_df['SEI_Growth'].values
+peak_temps = metrics_df['peak_temp_k'].values
+sei_growth = metrics_df['sei_growth'].values
 
-# Base color palette
-colors_base = plt.cm.Set3(np.linspace(0, 1, len(policies)))
+# Group policies by type
+grouped_policies = group_policies_by_type(policies, metrics_df)
+
+# Create color maps for different policy types
+policy_type_colors = {
+    'CC': plt.cm.Blues(np.linspace(0.4, 0.9, 10)),
+    'CV': plt.cm.Greens(np.linspace(0.4, 0.9, 10)),
+    'CCCV': plt.cm.Oranges(np.linspace(0.4, 0.9, 10)),
+    'CCCVPulse': plt.cm.Reds(np.linspace(0.4, 0.9, 10)),
+    'CVPulse': plt.cm.Purples(np.linspace(0.4, 0.9, 10)),
+}
+
+def plot_grouped_bars(ax, grouped_data, title, ylabel, sort_by='ascending'):
+    """
+    Plot grouped bars for policies with same base type.
+    
+    grouped_data: dict with structure {base_type: [(policy, metric_value, variant_val), ...]}
+    Shows different parameters for same policy type with different bar heights and shades.
+    """
+    bar_width = 0.7
+    x_pos = 0
+    x_labels = []
+    x_ticks = []
+    param_labels = []
+    all_bars = []
+    bar_labels = []
+    bar_colors = []
+    for base_type in sorted(grouped_data.keys()):
+        group_items = grouped_data[base_type]
+        # Sort by metric value if requested
+        if sort_by == 'ascending':
+            group_items = sorted(group_items, key=lambda x: x['metric'])
+        elif sort_by == 'descending':
+            group_items = sorted(group_items, key=lambda x: x['metric'], reverse=True)
+        num_variants = len(group_items)
+        group_width = bar_width * num_variants
+        colors = policy_type_colors.get(base_type, plt.cm.tab10(np.arange(10)))
+        for i, item in enumerate(group_items):
+            color_idx = int(i / max(1, num_variants - 1) * (len(colors) - 1)) if num_variants > 1 else 0
+            color = colors[color_idx]
+            bar = ax.bar(x_pos + i * bar_width, item['metric'], 
+                        width=bar_width * 0.95, color=color, 
+                        edgecolor='black', linewidth=1.5, alpha=0.85)
+            all_bars.append(bar)
+            bar_labels.append(item['policy'].replace('_', '\n'))
+            bar_colors.append(color)
+            # Add value labels on bars with fewer significant digits
+            height = item['metric']
+            if height > 100:
+                label_str = f'{height:.1f}'  # 1 decimal for larger values
+            else:
+                label_str = f'{height:.2g}'  # 2 sig figs for smaller values
+            ax.text(x_pos + i * bar_width + bar_width * 0.5 - bar_width * 0.5, height,
+                   label_str, ha='center', va='bottom', 
+                   fontsize=8, fontweight='bold')
+            # Add parameter label below each bar (unit only on rightmost/last bar)
+            param = item['variant_val']
+            variant_key = item.get('variant_key', None)
+            
+            # Only add unit for the last item in group
+            unit = ""
+            if i == num_variants - 1:  # Only add unit for last item in group
+                if variant_key == 'current':
+                    unit = " A"
+                elif variant_key in ['voltage', 'cv_voltage']:
+                    unit = " V"
+            
+            param_label = f"{param:.2f}{unit}" if param is not None else ""
+            # Position label slightly offset to avoid overlap - shift left for earlier bars, right for later bars
+            offset = (i - (num_variants - 1) / 2) * bar_width * 0.15
+            label_x = x_pos + i * bar_width + bar_width * 0.5 + offset
+            param_labels.append((label_x, param_label))
+        x_ticks.append(x_pos + (num_variants - 1) * bar_width / 2)
+        x_labels.append(base_type)
+        x_pos += group_width + bar_width
+    ax.set_ylabel(ylabel, fontsize=11, fontweight='bold')
+    ax.set_title(title, fontsize=12, fontweight='bold')
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels(x_labels, fontsize=10, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
+    # Add parameter labels below bars (use a fixed y position below zero)
+    y_min, y_max = ax.get_ylim()
+    label_y = y_min - 0.08 * (y_max - y_min)
+    for xpos, label in param_labels:
+        ax.text(xpos, label_y, label, ha='center', va='top', fontsize=9, color='navy', fontweight='bold')
+    return all_bars, bar_labels
+
 
 # ========================
-# PANEL 1: Charging Time Comparison
+# PANEL 1: Charging Time Comparison (Grouped)
 # ========================
 ax1 = fig.add_subplot(gs[0, 0])
-sort_idx_time = np.argsort(times_min)  # Sort by time (fastest to slowest)
-bars = ax1.bar(range(len(policies)), times_min[sort_idx_time], 
-               color=colors_base[sort_idx_time], edgecolor='black', linewidth=1.5)
-ax1.set_ylabel('Time to 100% SoC (minutes)', fontsize=11, fontweight='bold')
-ax1.set_title('Charging Time Comparison', fontsize=12, fontweight='bold')
-ax1.set_xticks(range(len(policies)))
-ax1.set_xticklabels([policies[i].replace('_', '\n') for i in sort_idx_time], fontsize=9)
-ax1.grid(axis='y', alpha=0.3)
 
-# Add value labels on bars
-for bar, time in zip(bars, times_min[sort_idx_time]):
-    height = bar.get_height()
-    ax1.text(bar.get_x() + bar.get_width()/2., height,
-             f'{height:.1f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+# Prepare grouped data for charging time
+grouped_time = {}
+for base_type in grouped_policies:
+    grouped_time[base_type] = []
+    for item in grouped_policies[base_type]:
+        idx = item['index']
+        metric_val = times_min[idx]
+        grouped_time[base_type].append({
+            'policy': item['policy'],
+            'metric': metric_val,
+            'variant_val': item['variant_val'],
+            'variant_key': item['variant_key']
+        })
 
-# ========================
-# PANEL 2: Peak Temperature Comparison
-# ========================
+plot_grouped_bars(ax1, grouped_time, 'Charging Time Comparison', 
+                  'Time to 100% SoC (minutes)', sort_by='ascending')
+
 ax2 = fig.add_subplot(gs[0, 1])
-sort_idx_temp = np.argsort(peak_temps)  # Sort by temperature
-# Color by temperature: Green (cool) to Red (hot)
-norm = plt.Normalize(vmin=peak_temps.min(), vmax=peak_temps.max())
-cmap = plt.cm.RdYlGn_r  # Red (hot) to Green (cool)
-colors_temp = cmap(norm(peak_temps[sort_idx_temp]))
-
-bars = ax2.bar(range(len(policies)), peak_temps[sort_idx_temp],
-               color=colors_temp, edgecolor='black', linewidth=1.5)
-ax2.axhline(y=333, color='red', linestyle='--', linewidth=2.5, label='60°C Safety Limit', alpha=0.7)
-ax2.set_ylabel('Peak Temperature (K)', fontsize=11, fontweight='bold')
-ax2.set_title('Thermal Stress Comparison', fontsize=12, fontweight='bold')
-ax2.set_xticks(range(len(policies)))
-ax2.set_xticklabels([policies[i].replace('_', '\n') for i in sort_idx_temp], fontsize=9)
+# Prepare grouped data for peak temperature (use CSV data which should be valid)
+grouped_temp = {}
+for base_type in grouped_policies:
+    grouped_temp[base_type] = []
+    for item in grouped_policies[base_type]:
+        idx = item['index']
+        metric_val = peak_temps[idx]
+        grouped_temp[base_type].append({
+            'policy': item['policy'],
+            'metric': metric_val,
+            'variant_val': item['variant_val'],
+            'variant_key': item['variant_key']
+        })
+plot_grouped_bars(ax2, grouped_temp, 'Thermal Stress Comparison', 
+                  'Peak Temperature (K)', sort_by='ascending')
+ax2.axhline(y=333, color='red', linestyle='--', linewidth=2.5, 
+            label='60°C Safety Limit', alpha=0.7)
 ax2.legend(loc='upper left', fontsize=9)
-ax2.grid(axis='y', alpha=0.3)
 
-# Add value labels on bars
-for bar, temp in zip(bars, peak_temps[sort_idx_temp]):
-    height = bar.get_height()
-    ax2.text(bar.get_x() + bar.get_width()/2., height,
-             f'{height:.1f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
-
-# ========================
-# PANEL 3: Current & SOC Dynamics
-# ========================
 ax3 = fig.add_subplot(gs[1, 0])
 
-# Plot all policies' current profiles
-for policy_name, df in policy_data.items():
-    policy_idx = np.where(policies == policy_name)[0][0]
-    ax3.plot(df['time'] / 60, df['current'], label=policy_name, 
-             color=colors_base[policy_idx], linewidth=2.5, alpha=0.8)
+# Calculate efficiency score (normalized combination of metrics)
+# Lower time, lower temp, lower SEI = better
+metrics_norm = metrics_df.copy()
+for col in ['charging_time_hours', 'peak_temp_k', 'sei_growth']:
+    min_val = metrics_norm[col].min()
+    max_val = metrics_norm[col].max()
+    metrics_norm[col] = (metrics_norm[col] - min_val) / (max_val - min_val + 1e-10)
 
-ax3.set_xlabel('Time (minutes)', fontsize=11, fontweight='bold')
-ax3.set_ylabel('Current (A)', fontsize=11, fontweight='bold')
-ax3.set_title('Current Profile Dynamics', fontsize=12, fontweight='bold')
-ax3.tick_params(axis='y', labelcolor='black')
-ax3.grid(alpha=0.3)
-ax3.legend(loc='upper right', fontsize=8, ncol=1)
+# Efficiency = average of (1 - each normalized metric)
+metrics_norm['Efficiency'] = (3 - (metrics_norm['charging_time_hours'] + 
+                                    metrics_norm['peak_temp_k'] + 
+                                    metrics_norm['sei_growth'])) / 3
 
-# ========================
-# PANEL 4: SEI Growth (Degradation)
-# ========================
-ax4 = fig.add_subplot(gs[1, 1])
-sort_idx_sei = np.argsort(sei_growth)  # Sort by degradation (best to worst)
-bars = ax4.bar(range(len(policies)), sei_growth[sort_idx_sei] * 1e10,  # Scale for visibility
-               color=colors_base[sort_idx_sei], edgecolor='black', linewidth=1.5)
-ax4.set_ylabel('SEI Growth (×10⁻¹⁰)', fontsize=11, fontweight='bold')
-ax4.set_title('Degradation - SEI Accumulation (10 cycles)', fontsize=12, fontweight='bold')
-ax4.set_xticks(range(len(policies)))
-ax4.set_xticklabels([policies[i].replace('_', '\n') for i in sort_idx_sei], fontsize=9)
-ax4.grid(axis='y', alpha=0.3)
+efficiency_df = metrics_norm[['policy', 'Efficiency']].sort_values('Efficiency', ascending=True)
+
+# Plot as horizontal bar chart
+colors_eff = plt.cm.RdYlGn(np.linspace(0.2, 0.8, len(efficiency_df)))
+y_pos = np.arange(len(efficiency_df))
+bars = ax3.barh(y_pos, efficiency_df['Efficiency'], color=colors_eff, edgecolor='black', linewidth=1.5, alpha=0.85)
 
 # Add value labels on bars
-for bar, sei in zip(bars, sei_growth[sort_idx_sei]):
-    height = bar.get_height()
-    ax4.text(bar.get_x() + bar.get_width()/2., height,
-             f'{height:.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+for i, (idx, row) in enumerate(efficiency_df.iterrows()):
+    ax3.text(row['Efficiency'] + 0.01, i, f"{row['Efficiency']:.3f}", 
+            va='center', fontsize=8, fontweight='bold')
+
+ax3.set_yticks(y_pos)
+ax3.set_yticklabels(efficiency_df['policy'], fontsize=9)
+ax3.set_xlabel('Efficiency Score', fontsize=11, fontweight='bold')
+ax3.set_title('Policy Efficiency Ranking\n(Higher = Better Balance)', fontsize=12, fontweight='bold')
+ax3.set_xlim(0, 1.0)
+ax3.grid(axis='x', alpha=0.3)
 
 # ========================
-# Overall Title
+# PANEL 4: SEI Growth (Degradation) - Grouped
 # ========================
-fig.suptitle('Battery Charging Policy Comparison: Fair Analysis\n' + 
-             '3 Ah battery, 20A max current, CV=4.0V (CV/CVPulse), CV=3.5V (CCCV/CCCVPulse), 10 cycles',
-             fontsize=14, fontweight='bold', y=0.98)
+ax4 = fig.add_subplot(gs[1, 1])
+
+# Prepare grouped data for SEI growth
+grouped_sei = {}
+for base_type in grouped_policies:
+    grouped_sei[base_type] = []
+    for item in grouped_policies[base_type]:
+        idx = item['index']
+        metric_val = sei_growth[idx] * 1e10  # Scale for visibility
+        grouped_sei[base_type].append({
+            'policy': item['policy'],
+            'metric': metric_val,
+            'variant_val': item['variant_val'],
+            'variant_key': item['variant_key']
+        })
+
+plot_grouped_bars(ax4, grouped_sei, 'Degradation - SEI Accumulation (10 cycles)', 
+                  r'SEI Growth ($\times 10^{-10} m$)', sort_by='ascending')
+
+fig.suptitle('Battery Charging Policy Comparison\nTested Policies: ' + ', '.join(sorted(set([k for k in grouped_policies.keys()]))),
+             fontsize=13, fontweight='bold', y=0.98)
 
 # Save figure
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -180,16 +443,18 @@ print("="*70)
 
 # Normalize metrics for comparison (lower is better for all)
 metrics_df_norm = metrics_df.copy()
-for col in ['Charging_Time_Hours', 'Peak_Temp_K', 'Avg_Temp_K', 'SEI_Growth']:
-    metrics_df_norm[col] = (metrics_df_norm[col] - metrics_df_norm[col].min()) / \
-                            (metrics_df_norm[col].max() - metrics_df_norm[col].min() + 1e-10)
+metric_cols = ['charging_time_hours', 'peak_temp_k', 'avg_temp_k', 'sei_growth']
+for col in metric_cols:
+    if col in metrics_df_norm.columns:
+        metrics_df_norm[col] = (metrics_df_norm[col] - metrics_df_norm[col].min()) / \
+                                (metrics_df_norm[col].max() - metrics_df_norm[col].min() + 1e-10)
 
 # Calculate overall score (weighted combination)
 weights = {
-    'Charging_Time_Hours': 0.3,  # Speed matters
-    'Peak_Temp_K': 0.2,           # Peak temp affects safety
-    'Avg_Temp_K': 0.2,            # Average temp affects degradation
-    'SEI_Growth': 0.3              # SEI growth affects longevity
+    'charging_time_hours': 0.3,  # Speed matters
+    'peak_temp_k': 0.2,           # Peak temp affects safety
+    'avg_temp_k': 0.2,            # Average temp affects degradation
+    'sei_growth': 0.3              # SEI growth affects longevity
 }
 
 metrics_df_norm['Overall_Score'] = sum(
@@ -199,17 +464,17 @@ metrics_df_norm['Overall_Score'] = sum(
 )
 
 # Sort by overall score
-rankings = metrics_df_norm[['Policy', 'Overall_Score']].sort_values('Overall_Score')
+rankings = metrics_df_norm[['policy', 'Overall_Score']].sort_values('Overall_Score')
 rankings['Rank'] = range(1, len(rankings) + 1)
 
 print("\nOverall Rankings (lower score = better):")
-print(rankings[['Rank', 'Policy', 'Overall_Score']].to_string(index=False))
+print(rankings[['Rank', 'policy', 'Overall_Score']].to_string(index=False))
 
 print("\nKey Findings:")
-best_policy = rankings.iloc[0]['Policy']
+best_policy = rankings.iloc[0]['policy']
 print(f"  • Best overall policy: {best_policy}")
-print(f"  • Fastest charging: {metrics_df.loc[metrics_df['Charging_Time_Hours'].idxmin(), 'Policy']}")
-print(f"  • Coolest operation: {metrics_df.loc[metrics_df['Peak_Temp_K'].idxmin(), 'Policy']}")
-print(f"  • Least SEI growth: {metrics_df.loc[metrics_df['SEI_Growth'].idxmin(), 'Policy']}")
+print(f"  • Fastest charging: {metrics_df.loc[metrics_df['charging_time_hours'].idxmin(), 'policy']}")
+print(f"  • Coolest operation: {metrics_df.loc[metrics_df['peak_temp_k'].idxmin(), 'policy']}")
+print(f"  • Least SEI growth: {metrics_df.loc[metrics_df['sei_growth'].idxmin(), 'policy']}")
 
 plt.show()

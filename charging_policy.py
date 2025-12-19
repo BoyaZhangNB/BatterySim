@@ -285,8 +285,8 @@ class CCCV:
         battery_voltage = y[0]  # Current battery voltage
         resistance = y[2]  # Current internal resistance
 
-        # If still below 50% SOC, stay in CC mode
-        if soc < 0.50:
+        # If still below 80% SOC, stay in CC mode
+        if soc < 0.80:
             # CC mode: supply voltage needed to maintain constant current
             return self.cc_current * resistance + battery_voltage
         else:
@@ -362,13 +362,13 @@ class CCCVPulse:
         resistance = y[2]  # Current internal resistance
         soc = y[4]  # State of charge (0-1)
 
-        # Stage 1: Constant Current until 50% SoC
-        if soc < 0.50:
+        # Stage 1: Constant Current until 80% SoC
+        if soc < 0.80:
             # CC mode: maintain constant current
             return self.cc_current * resistance + battery_voltage
         
         # Stage 2: Constant Voltage from 80-95% SoC
-        elif soc < 0.80:
+        elif soc < 0.95:
             # CV mode: maintain constant voltage
             return self.cv_voltage
         

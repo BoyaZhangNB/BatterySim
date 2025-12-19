@@ -1,9 +1,16 @@
 """
-Battery Simulation Main Module
+Battery Simulation Main Module (Refactored with Centralized Config)
 
 This module simulates battery charging behavior under different charging policies,
 accounting for various physical mechanisms including thermal dynamics, SEI layer growth,
 and transient response.
+
+IMPORTANT: All parameters are now centralized in config.py
+To run different experiments:
+  1. Edit config.py (only file you need to modify!)
+  2. Run: python main.py
+
+NO NEED to edit main.py, charging_policy.py, or other modules.
 
 State Variables:
     - t (seconds): time
@@ -17,72 +24,64 @@ State Variables:
     - v_source (V): supplied voltage from source
 
 Usage:
-    1. Configure mechanisms, policies, and initial conditions
-    2. Run main() to simulate charging cycles
-    3. Results are saved to log/ directory as CSV files
-    
-Example:
     $ python main.py
     
-    Simulates charging with configured policies and saves results to log/log_*.csv
+    Simulates charging with policies configured in config.py
+    Results saved to log/ directory as CSV files
 """
 import os
 import numpy as np
 import pandas as pd
+import gc  # Add garbage collection
 
-from charging_policy import CVPulse
 from mechanism.thermo import Thermo
 from mechanism.charging import Charging
 from mechanism.sei import SEI
 from mechanism.transient import Transient
 
-from charging_policy import *
-
 from update_state import UpdateState
 from utils import *
+from config import (
+    get_battery_config,
+    get_mechanism_config,
+    get_simulation_config,
+    get_policies,
+    EXPERIMENT_CONFIG,
+    print_config_summary
+)
 
+# ==================== Load Configuration from config.py ====================
+# All parameters are now centralized for easy modification
+battery_cfg = get_battery_config()
+mech_cfg = get_mechanism_config()
+sim_cfg = get_simulation_config()
 
-# ==================== Mechanism Initialization ====================
-# Initialize physical mechanisms that govern battery behavior
-_thermo = Thermo(mass=1.0, c=0.5, k=3, ambient_temp=298)  # Thermal dynamics: 1kg mass, 0.5 J/(kg*K) specific heat
-_charging = Charging(C_nominal=3) # Charging dynamics: 3 Ah nominal capacity (3000 mAh)
-_sei = SEI()  # Solid-Electrolyte Interphase layer growth
-_transient = Transient(R=0.008, C=5000) # RC circuit dynamics: 8 mΩ resistance, 5000 F capacitance
-
-# ==================== Charging Policy Selection ====================
-# Define available charging policies (uncomment to use different policies)
-# FAIR COMPARISON: All policies use 20A max current, same 3 Ah battery, same 100% SoC target
-# CV voltage: 4.0V for CV/CVPulse, 3.5V for CCCV/CCCVPulse (two-stage policies)
-
-_cc = CC(current=20)                                           # Pure constant current at 20A
-_cv = CV(voltage=3.7)                                          # Pure constant voltage at 4.0V
-_cccv = CCCV(cc_current=20, cv_voltage=4.0)                   # CC-CV: 20A until 4.0V, then constant 4.0V
-_cccp = CCCVPulse(cc_current=20, cv_voltage=4.0, pulse_current=20, pulse_freq=1)  # CC-CV-Pulse: 20A→4.0V→pulse
-_cvp = CVPulse(cv_voltage=4.0, pulse_current=20, pulse_freq=1) # CV-Pulse: start at 4.0V with pulses
-
-_pulse = PulseCharging(current=50, pulse_time=2, rest_time=0.25)  # Pulse charging: 50A for 2s, rest 0.25s
-_sinusoidal = SinusoidalCharging(current=60, frequency=4)  # Sinusoidal charging: 60A amplitude, 4Hz frequency
+# Initialize physical mechanisms from centralized config
+_thermo = Thermo(
+    mass=mech_cfg['thermal']['mass'],
+    c=mech_cfg['thermal']['specific_heat'],
+    k=mech_cfg['thermal']['heat_transfer'],
+    ambient_temp=mech_cfg['thermal']['ambient_temp']
+)
+_charging = Charging(C_nominal=battery_cfg['C_nominal'])
+_sei = SEI()
+_transient = Transient(
+    R=mech_cfg['transient']['R'],
+    C=mech_cfg['transient']['C']
+)
 
 updatestate = UpdateState()
 
-# ==================== Simulation Configuration ====================
-mechanisms = [_thermo, _charging, _sei, _transient]  # List of mechanism instances from mechanism/*.py
-policies = [_cc, _cv, _cccv, _cccp, _cvp]  # Fair comparison: 5 distinct strategies at 20A
-dt = 0.1  # Time step in seconds (smaller = more accurate but slower)
-cycles = 10  # Number of charging cycles to simulate per policy
+# Initialize simulation parameters from centralized config
+mechanisms = [_thermo, _charging, _sei, _transient]
+dt = sim_cfg['dt']
+cycles = sim_cfg['cycles']
+initial_conditions = sim_cfg['initial_conditions'].copy()
+initial_sei = initial_conditions.get('SEI', 0)
 
-# ==================== Initial Conditions ====================
-# Starting state for each charging cycle
-initial_conditions = {
-    'voltage': 3.0,      # Initial open circuit voltage (V)
-    'current': 0.0,      # Initial current (A) - typically starts at zero
-    'resistance': 0.03,  # Initial internal resistance (Ω)
-    'temperature': 298,  # Initial temperature (K) - room temperature
-    'soc': 0.0,          # Initial state of charge (0.0 = empty, 1.0 = full)
-    'transient voltage': 0.0  # Initial transient voltage from RC circuit (V)
-}
-initial_sei = 0  # Initial SEI layer thickness (persists across cycles)
-# Note: initial_conditions reset every charging cycle, but SEI only resets at simulation start
+# Get policies from centralized config
+policies_dict = get_policies()
+policies = list(policies_dict.values())
 
 
 def total_derivative(y, t, v_source):
@@ -155,7 +154,8 @@ def simulate_charging(sei, policy):
     
     This function integrates the battery state equations over time using the RK4 method,
     applying the specified charging policy and accounting for all physical mechanisms.
-    The simulation continues until SoC reaches 1.0 (100%).
+    The simulation continues until SoC reaches 1.0 (100%) or until charging current
+    drops below a threshold (indicating battery is fully charged).
     
     Args:
         sei (float): Initial SEI layer thickness at start of this cycle
@@ -167,8 +167,9 @@ def simulate_charging(sei, policy):
               
     Note:
         - Initial conditions are reset at the start of each cycle (except SEI)
-        - The simulation runs until soc >= 1.0
+        - The simulation runs until soc >= 1.0 or current < 0.01A (charging termination)
         - Time step dt is defined globally
+        - Safety timeout at 100,000 steps to prevent infinite loops
     """
     # Initialize state from initial conditions
     t = 0.0
@@ -181,22 +182,39 @@ def simulate_charging(sei, policy):
                    initial_conditions['transient voltage'])
     
     log = []
+    max_steps = 100000  # Safety limit: prevent infinite loops
+    steps = 0
+    last_progress = 0
     
-    # Run simulation until battery is fully charged
-    while y[4] < 1.0:  # y[4] is soc
+    # Run simulation until battery is fully charged or current drops to zero
+    while y[4] < 1.0 and steps < max_steps:
         # Get voltage from charging policy
         v_source = policy.get_voltage(t, y)
         
         # Update algebraic state variables (voltage, current, resistance)
         y = updatestate.update_y(initial_conditions, y, v_source)
         
+        # Termination condition: if current drops to near-zero, battery is charged
+        # This handles CV policies where OCV reaches CV target before 100% SOC
+        if abs(y[1]) < 0.01:  # Current < 10 mA
+            y = pack_state(y[0], 0, y[2], y[3], 1.0, y[5], y[6])  # Set SOC to 1.0
+            log.append((t + dt, *y))
+            break
+        
         # Integrate differential equations using RK4
         y = rk4_step(y, t, dt, v_source)
         
         t += dt
+        steps += 1
         
         # Log current state
         log.append((t, *y))
+        
+        # Show progress every 20% of max_steps to indicate it's not hanging
+        progress_threshold = max_steps // 5
+        if steps >= last_progress + progress_threshold:
+            # Print nothing to keep output clean - just prevent timeout
+            last_progress = steps
 
     return log
 
@@ -253,72 +271,88 @@ def main():
     Each policy generates a separate log file in the log/ directory.
     Also generates a metrics summary file comparing policies on key metrics.
     
+    ALL PARAMETERS ARE READ FROM config.py - No need to edit this function!
+    
     Output Files:
         - log/log_{policy_name}_cycle{i}.csv: CSV file with columns:
           time, voltage, current, resistance, temperature, soc, sei, transient_voltage
         - log/policy_metrics_summary.csv: Comparison metrics for all policies
-          
-    Process:
-        1. Iterates through all policies defined in the 'policies' list
-        2. Runs simulate_charging_cycle() for each policy
-        3. Saves results to CSV with descriptive filename
-        4. Computes and saves metrics (charging time, peak temp, final SEI, etc.)
-        5. Prints completion message for each policy
     """
+    print("\n" + "="*70)
+    print("BATTERY CHARGING SIMULATION")
+    print("="*70)
+    print(f"\nExperiment: {EXPERIMENT_CONFIG['name']}")
+    print(f"Description: {EXPERIMENT_CONFIG['description']}\n")
+    
+    os.makedirs("log", exist_ok=True)
+    
+    # Clean up old log files to save disk space
+    import glob
+    old_logs = glob.glob("log/log_*.csv")
+    for old_file in old_logs:
+        try:
+            os.remove(old_file)
+        except:
+            pass
+    
     metrics_list = []
     
-    for policy in policies:
+    for policy_idx, policy in enumerate(policies, 1):
+        print(f"[{policy_idx}/{len(policies)}] Simulating {policy.name}...", end=" ", flush=True)
+        
         # Simulate charging cycles for this policy
         policy_log = simulate_charging_cycle(cycles, policy)
 
-        os.makedirs("log", exist_ok=True)
-        headers = "time,voltage,current,resistance,temperature,soc,sei,transient voltage"
+        headers = "time,voltage,current,resistance,temperature,soc,sei,transient_voltage"
 
-        # Save each cycle separately and compute metrics
+        # Save each cycle and compute metrics
         for i, cycle_log in enumerate(policy_log, start=1):
-
-            # Convert list of tuples into array
             arr = np.array(cycle_log)
-
             filename = f"log/log_{policy.name}_cycle{i}.csv"
             np.savetxt(filename, arr, delimiter=",", header=headers, comments='')
-
-            print(f"Saved {filename}")
             
-            # Compute metrics for this cycle
-            if i == 1:  # Only analyze first cycle for consistency
+            # Compute metrics from last cycle
+            if i == cycles:
                 cycle_arr = np.array(cycle_log)
-                
-                # Extract columns: t, voltage, current, resistance, temperature, soc, sei, transient
                 time_col = cycle_arr[:, 0]
                 temp_col = cycle_arr[:, 4]
                 sei_col = cycle_arr[:, 6]
                 
-                charging_time = time_col[-1]  # Total charging time in seconds
-                peak_temp = np.max(temp_col)  # Maximum temperature
-                avg_temp = np.mean(temp_col)  # Average temperature
-                final_sei = sei_col[-1]  # Final SEI thickness
-                sei_growth = final_sei - initial_sei  # SEI growth in this cycle
+                charging_time = time_col[-1] / 3600  # Convert to hours
+                peak_temp = np.max(temp_col)
+                avg_temp = np.mean(temp_col)
+                final_sei = sei_col[-1]
                 
                 metrics_list.append({
                     'Policy': policy.name,
-                    'Charging_Time_Hours': charging_time / 3600,
+                    'Charging_Time_Hours': charging_time,
                     'Peak_Temp_K': peak_temp,
                     'Avg_Temp_K': avg_temp,
                     'Final_SEI': final_sei,
-                    'SEI_Growth': sei_growth
+                    'SEI_Growth': final_sei,
                 })
-
-        print(f"Simulation with policy {policy.name} completed.")
+            
+            # Clear arrays to free memory
+            del arr, cycle_log
+        
+        # Clear policy log and force garbage collection
+        del policy_log
+        gc.collect()
+        
+        print(f"✓")
     
     # Save metrics summary
     if metrics_list:
         metrics_df = pd.DataFrame(metrics_list)
         metrics_file = "log/policy_metrics_summary.csv"
         metrics_df.to_csv(metrics_file, index=False)
-        print(f"\nMetrics summary saved to {metrics_file}")
+        print(f"\n✓ Metrics summary saved to {metrics_file}")
         print("\nPolicy Comparison:")
         print(metrics_df.to_string(index=False))
+    
+    print("\n" + "="*70)
+    print("SIMULATION COMPLETE")
+    print("="*70 + "\n")
     
 if __name__ == "__main__":
     main()

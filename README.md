@@ -1,125 +1,99 @@
-# BatterySim
+# Battery Charging Simulation
 
-A physics-based battery charging simulator for analyzing and comparing different charging strategies.
-
-## Project Goal
-
-The goal of this project is to measure the effectiveness of different charging policies and their impact on both **charging speed** and **battery lifetime**. We evaluate policies using two key metrics:
-
-- **Charging Time per Cycle**: How quickly the battery reaches full charge (measures efficiency)
-- **SEI Layer Growth**: Rate of solid-electrolyte interphase formation (measures degradation and lifetime)
-
-This allows us to understand the fundamental trade-off: fast charging policies may complete cycles quickly but potentially accelerate battery degradation, while gentler charging approaches may extend battery life at the cost of longer charging times.
+A comprehensive ODE-based simulation framework for analyzing and optimizing lithium-ion battery charging policies.
 
 ## Overview
 
-BatterySim is a comprehensive ordinary differential equation (ODE)-based model that simulates the dynamic behavior of lithium-ion batteries during charging. The simulator accounts for multiple coupled physical mechanisms that interact during battery operation.
+Simulates the dynamic behavior of lithium-ion batteries during charging, accounting for:
+- **Thermal dynamics** (Joule heating, environmental cooling)
+- **State of charge dynamics** (charge accumulation, open circuit voltage)
+- **Transient voltage response** (RC circuit polarization model)
+- **SEI layer growth** (temperature and current-dependent degradation)
 
-### Physical Mechanisms
+## Quick Start
 
-The model incorporates four key mechanisms:
+### Installation
+```bash
+pip install -r requirements.txt
+```
 
-1. **Thermal Dynamics** 
-   - Tracks battery temperature changes from internal heating and environmental cooling
-   - Joule heating from current flow through internal resistance
-   - Newton's law of cooling for heat dissipation to the environment
-   - Temperature affects other mechanisms (resistance, SEI growth rate)
+### Run Simulation
+```bash
+# Simulate configured policies
+python main.py
 
-2. **State of Charge (SoC) Dynamics**
-   - Models how current flow changes the battery's charge level
-   - Integrates current over time normalized by battery capacity
-   - Determines open circuit voltage through voltage-SoC lookup tables
+# Run parameter sweep (tests multiple current/voltage combinations)
+python sweep_policies.py
 
-3. **Transient Voltage Response**
-   - Captures short-term voltage dynamics using RC circuit model
-   - Represents polarization effects and charge transfer limitations
-   - Models voltage drop that builds during current flow and relaxes during rest
+# Generate comparison plot with grouped bars
+python compare_policies.py
+```
 
-4. **SEI Layer Growth**
-   - Simulates irreversible formation of solid-electrolyte interphase on anode
-   - Primary mechanism for capacity fade and battery aging
-   - Growth rate depends on temperature (Arrhenius), state of charge, and current
-   - Accumulates across charging cycles to model long-term degradation
+## Configuration
 
-### Charging Policies
+Edit `config.py` to modify:
+- **Battery parameters**: Capacity, voltage range, internal resistance
+- **Charging policies**: Add new policies or modify existing ones
+- **Simulation settings**: Time step, number of cycles, initial conditions
+- **Experiment settings**: Select which policies to run
 
-The simulator supports multiple charging strategies:
-
-- **Constant Voltage (CV)**: Maintains fixed voltage throughout charging
-- **Constant Current (CC)**: Adaptively adjusts voltage to maintain constant current
-- **Pulse Charging**: Alternates between high-current pulses and rest periods
-- **Sinusoidal Charging**: Applies smoothly varying current with configurable frequency
-
-### Numerical Method
-
-The simulation uses the **Runge-Kutta 4th Order (RK4)** method for numerical integration of the coupled differential equations. RK4 provides:
-
-- **High accuracy**: Fourth-order convergence ensures precise results
-- **Stability**: Handles stiff equations common in battery dynamics
-- **Efficiency**: Good balance between accuracy and computational cost
-
-At each time step, RK4 evaluates the system derivatives at four carefully chosen points and combines them with weighted averaging to advance the state. This is significantly more accurate than simple Euler integration while remaining computationally tractable for multi-cycle simulations.
-
-## Usage
-
-### Running a Simulation
-
-1. Configure the simulation parameters in `main.py`:
-   - Choose charging policy (CV, CC, Pulse, Sinusoidal)
-   - Set initial conditions (temperature, SoC, resistance)
-   - Define simulation parameters (time step, number of cycles)
-
-2. Run the simulation:
-   ```bash
-   python main.py
-   ```
-
-3. Results are saved to `log/log_{policy_name}.csv` with columns:
-   - time, voltage, current, resistance, temperature, soc, sei, transient_voltage
-
-### Example Configuration
-
+### Example: Add a New Policy
 ```python
-# In main.py
-_pulse = PulseCharging(current=50, pulse_time=2, rest_time=0.25)
-policies = [_pulse]  # Simulate pulse charging
-cycles = 100  # Run 100 charging cycles
-dt = 0.1  # 0.1 second time step
+POLICY_DEFINITIONS = {
+    'CC_3A': {
+        'class': CC,
+        'params': {'current': 3},
+        'description': 'Constant Current at 3A'
+    },
+}
 ```
 
-## Project Structure
+## File Structure
 
-```
-BatterySim/
-├── main.py                 # Main simulation loop and configuration
-├── charging_policy.py      # Charging policy implementations
-├── update_state.py         # Algebraic state updates
-├── utils.py               # Helper functions and data processing
-├── mechanism/             # Physical mechanism models
-│   ├── charging.py        # SoC dynamics
-│   ├── thermo.py          # Thermal dynamics
-│   ├── transient.py       # RC circuit dynamics
-│   ├── sei.py             # SEI layer growth (full model)
-│   └── sei_simplified.py  # SEI layer growth (simplified)
-└── log/                   # Simulation output files
-```
+**Core Simulation:**
+- `main.py` - Main simulation runner
+- `config.py` - Centralized configuration
+- `charging_policy.py` - Charging policy implementations
+- `update_state.py` - ODE system and state evolution
+- `utils.py` - Utility functions
 
-## Key Features
+**Analysis & Visualization:**
+- `sweep_policies.py` - Parameter sweep framework
+- `compare_policies.py` - Policy comparison with grouped bar charts
 
-- **Modular Design**: Each physical mechanism is independent and can be easily modified or extended
-- **Multiple Charging Policies**: Compare different strategies side-by-side
-- **Physics-Based**: Grounded in established electrochemical and thermal models
-- **Configurable**: Easy to adjust parameters for different battery chemistries and conditions
-- **Comprehensive Output**: Logs all state variables for detailed analysis
+**Output:**
+- `log/` - Simulation results (CSV logs, metrics, plots)
+- `requirements.txt` - Python dependencies
 
-## Requirements
+## Charging Policies
 
-- Python 3.x
-- NumPy
-- Matplotlib (for visualization)
+- **CC** (Constant Current): Maintains constant current
+- **CV** (Constant Voltage): Maintains constant voltage
+- **CCCV** (CC-CV Two-stage): Constant current followed by constant voltage
+- **CCCVPulse** (Three-stage): CC → CV → Pulse charging
+- **CVPulse**: Constant voltage with pulse charging
 
-See `requirements.txt` for complete dependencies.
+## Output Metrics
 
-## Background
+Each simulation generates:
+- **Charging Time (hours)**: Total time to reach 100% SoC
+- **Peak Temperature (K)**: Maximum temperature during charge
+- **Average Temperature (K)**: Mean temperature during charge
+- **SEI Growth**: Final SEI layer thickness (degradation indicator)
 
-This battery simulator was developed for MAT292 as a tool to explore the mathematical modeling of complex physical systems using ordinary differential equations. It demonstrates how coupled ODEs can capture the intricate behavior of real-world systems like lithium-ion batteries.
+## Comparison Visualization
+
+The comparison plot shows:
+- **Grouped bars** by policy type (CC, CV, CCCV, CCCVPulse, CVPulse)
+- **Different bar heights** representing different parameter values
+- **Color shading** to distinguish parameter intensity
+- **Parameter labels** below each bar (current in Amps or voltage in Volts)
+- **Four panels**:
+  1. Charging time comparison
+  2. Peak temperature (thermal stress)
+  3. Voltage and current vs State of Charge
+  4. SEI growth (degradation)
+
+## Numerical Method
+
+Uses **Runge-Kutta 4th Order (RK4)** integration for solving coupled ODEs with high accuracy and stability.

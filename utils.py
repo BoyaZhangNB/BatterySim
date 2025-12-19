@@ -165,25 +165,23 @@ def get_ocv_from_soc(soc):
         - Linear interpolation is used between data points
         - Voltage plateau is characteristic of LiFePO4 chemistry
     """
-    # Empirical data points (SOC percentage, voltage per cell)
-    # Data represents typical LiFePO4 discharge curve
+# Empirical Li-ion OCV curve (SOC %, voltage per cell)
+# Typical graphite || NMC/NCA chemistry
+
     data = [
-        (100.0, 3.65),  # Fully charged
-        (99.5, 3.45),
-        (99.0, 3.38),
-        (90.0, 3.35),
-        (80.0, 3.33),
-        (70.0, 3.30),
-        (60.0, 3.28),
-        (50.0, 3.26),  # Characteristic voltage plateau region
-        (40.0, 3.25),
-        (30.0, 3.23),
-        (20.0, 3.20),
-        (15.0, 3.05),
-        (9.5, 3.00),
-        (5.0, 2.80),
-        (0.5, 2.54),
-        (0.0, 2.50)    # Fully discharged (cutoff voltage)
+        (100.0, 4.20),  # Fully charged
+        (95.0, 4.10),
+        (90.0, 4.00),
+        (80.0, 3.92),
+        (70.0, 3.85),
+        (60.0, 3.80),
+        (50.0, 3.75),
+        (40.0, 3.70),
+        (30.0, 3.65),
+        (20.0, 3.55),
+        (10.0, 3.40),
+        (5.0,  3.25),
+        (0.0,  3.00)   # Cutoff voltage
     ]
 
     # Convert fraction to percentage for lookup
