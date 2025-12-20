@@ -225,11 +225,9 @@ for idx, row in metrics_df.iterrows():
         print(f"Warning: Could not find cycle1 file for {policy_name}")
 
 # ==============================
-# CREATE OPTIMIZED 2x2 COMPARISON PLOT
+# CREATE THREE SEPARATE COMPARISON PLOTS
 # ==============================
 plt.style.use("seaborn-v0_8-darkgrid")
-fig = plt.figure(figsize=(16, 10))
-gs = fig.add_gridspec(2, 2, hspace=0.35, wspace=0.3)
 
 # Extract data
 policies = metrics_df['policy'].values
@@ -292,7 +290,7 @@ def plot_grouped_bars(ax, grouped_data, title, ylabel, sort_by='ascending'):
                 label_str = f'{height:.2g}'  # 2 sig figs for smaller values
             ax.text(x_pos + i * bar_width + bar_width * 0.5 - bar_width * 0.5, height,
                    label_str, ha='center', va='bottom', 
-                   fontsize=8, fontweight='bold')
+                   fontsize=16, fontweight='bold')
             # Add parameter label below each bar (unit only on rightmost/last bar)
             param = item['variant_val']
             variant_key = item.get('variant_key', None)
@@ -313,23 +311,24 @@ def plot_grouped_bars(ax, grouped_data, title, ylabel, sort_by='ascending'):
         x_ticks.append(x_pos + (num_variants - 1) * bar_width / 2)
         x_labels.append(base_type)
         x_pos += group_width + bar_width
-    ax.set_ylabel(ylabel, fontsize=11, fontweight='bold')
-    ax.set_title(title, fontsize=12, fontweight='bold')
+    ax.set_ylabel(ylabel, fontsize=22, fontweight='bold')
+    ax.set_title(title, fontsize=24, fontweight='bold')
     ax.set_xticks(x_ticks)
-    ax.set_xticklabels(x_labels, fontsize=10, fontweight='bold')
+    ax.set_xticklabels(x_labels, fontsize=20, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
     # Add parameter labels below bars (use a fixed y position below zero)
     y_min, y_max = ax.get_ylim()
     label_y = y_min - 0.08 * (y_max - y_min)
     for xpos, label in param_labels:
-        ax.text(xpos, label_y, label, ha='center', va='top', fontsize=9, color='navy', fontweight='bold')
+        ax.text(xpos, label_y, label, ha='center', va='top', fontsize=18, color='navy', fontweight='bold')
     return all_bars, bar_labels
 
 
 # ========================
-# PANEL 1: Charging Time Comparison (Grouped)
+# PLOT 1: Charging Time Comparison (Grouped)
 # ========================
-ax1 = fig.add_subplot(gs[0, 0])
+fig1 = plt.figure(figsize=(12, 6))
+ax1 = fig1.add_subplot(111)
 
 # Prepare grouped data for charging time
 grouped_time = {}
@@ -348,8 +347,18 @@ for base_type in grouped_policies:
 plot_grouped_bars(ax1, grouped_time, 'Charging Time Comparison', 
                   'Time to 100% SoC (minutes)', sort_by='ascending')
 
-ax2 = fig.add_subplot(gs[0, 1])
-# Prepare grouped data for peak temperature (use CSV data which should be valid)
+fig1.tight_layout()
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+filename1 = f"{LOG_DIR}/plot_charging_time_{timestamp}.png"
+fig1.savefig(filename1, dpi=300, bbox_inches='tight')
+print(f"✓ Charging time plot saved → {filename1}")
+plt.close(fig1)
+
+# ========================
+# PLOT 2: Thermal Stress Comparison (Grouped)
+# ========================
+fig2 = plt.figure(figsize=(12, 6))
+ax2 = fig2.add_subplot(111)
 grouped_temp = {}
 for base_type in grouped_policies:
     grouped_temp[base_type] = []
@@ -364,48 +373,30 @@ for base_type in grouped_policies:
         })
 plot_grouped_bars(ax2, grouped_temp, 'Thermal Stress Comparison', 
                   'Peak Temperature (K)', sort_by='ascending')
+ax2.axhline(y=318, color='orange', linestyle='--', linewidth=2.5, 
+            label='45°C Warning', alpha=0.7)
 ax2.axhline(y=333, color='red', linestyle='--', linewidth=2.5, 
             label='60°C Safety Limit', alpha=0.7)
-ax2.legend(loc='upper left', fontsize=9)
+# Increase y-axis upper limit to provide extra headroom for lines/legend
+try:
+    ax2.set_ylim(top=float(np.nanmax(peak_temps) * 1.25))
+except Exception:
+    pass
 
-ax3 = fig.add_subplot(gs[1, 0])
+# Keep legend at top-left with a semi-opaque white frame for readability
+ax2.legend(loc='upper left', fontsize=18, frameon=True, facecolor='white', framealpha=0.85, edgecolor='black')
 
-# Calculate efficiency score (normalized combination of metrics)
-# Lower time, lower temp, lower SEI = better
-metrics_norm = metrics_df.copy()
-for col in ['charging_time_hours', 'peak_temp_k', 'sei_growth']:
-    min_val = metrics_norm[col].min()
-    max_val = metrics_norm[col].max()
-    metrics_norm[col] = (metrics_norm[col] - min_val) / (max_val - min_val + 1e-10)
-
-# Efficiency = average of (1 - each normalized metric)
-metrics_norm['Efficiency'] = (3 - (metrics_norm['charging_time_hours'] + 
-                                    metrics_norm['peak_temp_k'] + 
-                                    metrics_norm['sei_growth'])) / 3
-
-efficiency_df = metrics_norm[['policy', 'Efficiency']].sort_values('Efficiency', ascending=True)
-
-# Plot as horizontal bar chart
-colors_eff = plt.cm.RdYlGn(np.linspace(0.2, 0.8, len(efficiency_df)))
-y_pos = np.arange(len(efficiency_df))
-bars = ax3.barh(y_pos, efficiency_df['Efficiency'], color=colors_eff, edgecolor='black', linewidth=1.5, alpha=0.85)
-
-# Add value labels on bars
-for i, (idx, row) in enumerate(efficiency_df.iterrows()):
-    ax3.text(row['Efficiency'] + 0.01, i, f"{row['Efficiency']:.3f}", 
-            va='center', fontsize=8, fontweight='bold')
-
-ax3.set_yticks(y_pos)
-ax3.set_yticklabels(efficiency_df['policy'], fontsize=9)
-ax3.set_xlabel('Efficiency Score', fontsize=11, fontweight='bold')
-ax3.set_title('Policy Efficiency Ranking\n(Higher = Better Balance)', fontsize=12, fontweight='bold')
-ax3.set_xlim(0, 1.0)
-ax3.grid(axis='x', alpha=0.3)
+fig2.tight_layout()
+filename2 = f"{LOG_DIR}/plot_thermal_stress_{timestamp}.png"
+fig2.savefig(filename2, dpi=300, bbox_inches='tight')
+print(f"✓ Thermal stress plot saved → {filename2}")
+plt.close(fig2)
 
 # ========================
-# PANEL 4: SEI Growth (Degradation) - Grouped
+# PLOT 3: SEI Growth (Degradation) - Grouped
 # ========================
-ax4 = fig.add_subplot(gs[1, 1])
+fig3 = plt.figure(figsize=(12, 6))
+ax4 = fig3.add_subplot(111)
 
 # Prepare grouped data for SEI growth
 grouped_sei = {}
@@ -424,15 +415,55 @@ for base_type in grouped_policies:
 plot_grouped_bars(ax4, grouped_sei, 'Degradation - SEI Accumulation (10 cycles)', 
                   r'SEI Growth ($\times 10^{-10} m$)', sort_by='ascending')
 
-fig.suptitle('Battery Charging Policy Comparison\nTested Policies: ' + ', '.join(sorted(set([k for k in grouped_policies.keys()]))),
-             fontsize=13, fontweight='bold', y=0.98)
+fig3.tight_layout()
+filename3 = f"{LOG_DIR}/plot_sei_growth_{timestamp}.png"
+fig3.savefig(filename3, dpi=300, bbox_inches='tight')
+print(f"✓ SEI growth plot saved → {filename3}")
+plt.close(fig3)
 
-# Save figure
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-filename = f"{LOG_DIR}/comparison_policies_optimized_{timestamp}.png"
-plt.tight_layout(rect=[0, 0.03, 1, 0.96])
-plt.savefig(filename, dpi=300, bbox_inches='tight')
-print(f"\n✓ Optimized comparison plot saved → {filename}")
+# ========================
+# PLOT 4: Efficiency Score (Normalized combination)
+# ========================
+fig4 = plt.figure(figsize=(12, 6))
+ax_eff = fig4.add_subplot(111)
+
+# Calculate efficiency score (normalized combination of metrics)
+# Lower time, lower temp, lower SEI = better
+metrics_norm = metrics_df.copy()
+for col in ['charging_time_hours', 'peak_temp_k', 'sei_growth']:
+    min_val = metrics_norm[col].min()
+    max_val = metrics_norm[col].max()
+    metrics_norm[col] = (metrics_norm[col] - min_val) / (max_val - min_val + 1e-10)
+
+# Efficiency = average of (1 - each normalized metric)
+metrics_norm['Efficiency'] = (3 - (metrics_norm['charging_time_hours'] + 
+                                    metrics_norm['peak_temp_k'] + 
+                                    metrics_norm['sei_growth'])) / 3
+
+efficiency_df = metrics_norm[['policy', 'Efficiency']].sort_values('Efficiency', ascending=False)
+
+# Plot as bar chart (sorted by efficiency, best first)
+colors_eff = plt.cm.RdYlGn(np.linspace(0.2, 0.8, len(efficiency_df)))
+x_pos = np.arange(len(efficiency_df))
+bars = ax_eff.bar(x_pos, efficiency_df['Efficiency'], color=colors_eff, edgecolor='black', linewidth=1.5, alpha=0.85)
+
+# Add value labels on bars
+for i, (idx, row) in enumerate(efficiency_df.iterrows()):
+    ax_eff.text(i, row['Efficiency'] + 0.01, f"{row['Efficiency']:.3f}", 
+            ha='center', fontsize=16, fontweight='bold')
+
+ax_eff.set_xticks(x_pos)
+ax_eff.set_xticklabels(efficiency_df['policy'], rotation=45, ha='right', fontsize=18)
+ax_eff.set_ylabel('Efficiency Score', fontsize=22, fontweight='bold')
+ax_eff.set_title('Policy Efficiency Ranking\n(Higher = Better Balance)', fontsize=24, fontweight='bold')
+ax_eff.set_ylim(0, 1.0)
+ax_eff.grid(axis='y', alpha=0.7)
+
+fig4.tight_layout()
+filename4 = f"{LOG_DIR}/plot_efficiency_score_{timestamp}.png"
+fig4.savefig(filename4, dpi=300, bbox_inches='tight')
+print(f"✓ Efficiency score plot saved → {filename4}")
+plt.close(fig4)
 
 # ========================
 # RANKING ANALYSIS

@@ -131,7 +131,7 @@ class PolicySweep:
         print("SWEEPING CV POLICY - Constant Voltage")
         print("="*70)
         
-        voltages = [4.2, 4.6, 5.0]
+        voltages = [3.8, 4.0, 4.2]
         
         for voltage in voltages:
             policy_name = f"CV_{voltage:.1f}V"
@@ -151,7 +151,7 @@ class PolicySweep:
         print("="*70)
         
         cv_thresholds = [4.2, 4.6, 5.0]
-        cc_current = 3
+        cc_current = 9
         
         for cv_voltage in cv_thresholds:
             policy_name = f"CCCV_{cc_current}A_{cv_voltage:.1f}V"
@@ -171,7 +171,7 @@ class PolicySweep:
         print("="*70)
 
         cv_thresholds = [4.2, 4.6, 5.0]
-        cc_current = 3
+        cc_current = 9
         pulse_current = 1
         pulse_freq = 1
         
