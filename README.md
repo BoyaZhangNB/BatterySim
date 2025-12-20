@@ -19,9 +19,6 @@ pip install -r requirements.txt
 
 ### Run Simulation
 ```bash
-# Simulate configured policies
-python main.py
-
 # Run parameter sweep (tests multiple current/voltage combinations)
 python sweep_policies.py
 

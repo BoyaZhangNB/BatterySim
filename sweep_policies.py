@@ -298,6 +298,8 @@ class PolicySweep:
     def save_results(self, df):
         """Save all results to CSV"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        os.makedirs("log", exist_ok=True)
         filename = f"log/sweep_results_{timestamp}.csv"
         df.to_csv(filename, index=False)
         print(f"\n✓ Results saved to {filename}")
