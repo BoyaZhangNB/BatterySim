@@ -18,31 +18,17 @@ pip install -r requirements.txt
 ```
 
 ### Run Simulation
+Single-trajectory interaction simulations can be found at [Battery Simulation Website](https://boyazhangnb.github.io/BatterySim/).
+
+
+To produce figures and comparison results, run the follow scripts in this order to store generated figures in `log/` directory.
+
 ```bash
 # Run parameter sweep (tests multiple current/voltage combinations)
 python sweep_policies.py
 
 # Generate comparison plot with grouped bars
 python compare_policies.py
-```
-
-## Configuration
-
-Edit `config.py` to modify:
-- **Battery parameters**: Capacity, voltage range, internal resistance
-- **Charging policies**: Add new policies or modify existing ones
-- **Simulation settings**: Time step, number of cycles, initial conditions
-- **Experiment settings**: Select which policies to run
-
-### Example: Add a New Policy
-```python
-POLICY_DEFINITIONS = {
-    'CC_3A': {
-        'class': CC,
-        'params': {'current': 3},
-        'description': 'Constant Current at 3A'
-    },
-}
 ```
 
 ## File Structure
@@ -68,20 +54,18 @@ POLICY_DEFINITIONS = {
 - **CV** (Constant Voltage): Maintains constant voltage
 - **CCCV** (CC-CV Two-stage): Constant current followed by constant voltage
 - **CCCVPulse** (Three-stage): CC → CV → Pulse charging
-- **CVPulse**: Constant voltage with pulse charging
 
 ## Output Metrics
 
 Each simulation generates:
 - **Charging Time (hours)**: Total time to reach 100% SoC
 - **Peak Temperature (K)**: Maximum temperature during charge
-- **Average Temperature (K)**: Mean temperature during charge
 - **SEI Growth**: Final SEI layer thickness (degradation indicator)
 
 ## Comparison Visualization
 
 The comparison plot shows:
-- **Grouped bars** by policy type (CC, CV, CCCV, CCCVPulse, CVPulse)
+- **Grouped bars** by policy type (CC, CV, CCCV, CCCVPulse)
 - **Different bar heights** representing different parameter values
 - **Color shading** to distinguish parameter intensity
 - **Parameter labels** below each bar (current in Amps or voltage in Volts)
