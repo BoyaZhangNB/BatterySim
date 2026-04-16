@@ -2,6 +2,8 @@
 
 A comprehensive ODE-based simulation framework for analyzing and optimizing lithium-ion battery charging policies.
 
+[Report](docs/ODE_Final_Project.pdf) | [Website](https://boyazhangnb.github.io/BatterySim/)
+
 ## Overview
 
 Simulates the dynamic behavior of lithium-ion batteries during charging, accounting for:
