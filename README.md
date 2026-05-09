@@ -77,6 +77,8 @@ The comparison plot shows:
   3. Voltage and current vs State of Charge
   4. SEI growth (degradation)
 
+ ![battery performance plot](docs/plot.png)
+
 ## Numerical Method
 
 Uses **Runge-Kutta 4th Order (RK4)** integration for solving coupled ODEs with high accuracy and stability.
